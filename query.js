@@ -34,23 +34,60 @@ const productByHandleQuery = (handle) => `
       title
       description
       featuredImage {
-      id
-      url
+        id
+        url
+      }
+      images(first: 5) {
+        edges {
+          node {
+            id
+            url
+          }
+        }
       }
       handle
       variants(first:5) {
-      edges {
-          node {
-          id
-          title
-          price
-          }
-      }
+        edges {
+            node {
+                id
+                title
+                price
+                selectedOptions{
+                    name
+                    value
+                }   
+            }
+        }
       }
       vendor
+      options {
+        id
+        name
+        values
+      }
 	}
 }
 `
+
+const productVariantsByHandleQuery = (handle) => `
+    {
+        productByHandle(handle: "${handle}") {
+            id
+            variants(first:5) {
+                edges {
+                    node {
+                        id
+                        selectedOptions{
+                            name
+                            value
+                        }   
+                    }
+                }
+            }
+        }
+    }
+`
+
 const loginQuery = `
         mutation customerAccessTokenCreate($input: CustomerAccessTokenCreateInput!) {
             customerAccessTokenCreate(input: $input) {
@@ -86,6 +123,7 @@ const customerQuery = (email) => {
 module.exports = {
     productsQuery,
     productByHandleQuery,
+    productVariantsByHandleQuery,
     loginQuery,
     customerQuery
 }

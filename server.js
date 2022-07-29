@@ -2,7 +2,8 @@ const express = require("express")
 const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery } = require("./query")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery } = require("./query")
+const { compareObjects } = require("./utils")
 
 const app = express()
 
@@ -38,8 +39,7 @@ app.get("/products", async (req, res) => {
             variants
         }
     })
-    
-    res.status(200).json(products)
+    res.status(200).json(products.reverse())
 })
 
 app.get("/products/:handle", async (req, res) => {
@@ -47,8 +47,45 @@ app.get("/products/:handle", async (req, res) => {
     const query = productByHandleQuery(handle)
     const data = await fetchData(query)
     const product = data.data.productByHandle
+    const variants = product.variants.edges.map(variant => variant.node)
+    const featuredImage = product.featuredImage.url
+    const images = product.images.edges.map(image => image.node)
 
-    res.status(200).json(product)
+    res.status(200).json({
+        ...product,
+        variants,
+        featuredImage,
+        images
+    })
+})
+
+app.post("/products/:handle", async (req, res) => {
+    try {
+        console.log(req.body)
+        const productOption = req.body
+        const handle = req.params.handle
+        const query = productVariantsByHandleQuery(handle)
+        const data = await fetchData(query)
+        const product = data.data.productByHandle
+        const variants = product.variants.edges.map(variant => variant.node)
+        const _variants = variants.map(variant => {
+            const option = variant.selectedOptions
+            const o2 = {}
+            option.forEach(pair => o2[pair.name] = pair.value)
+            return {
+                id: variant.id,
+                options: o2
+            }
+        } )
+        
+        console.log(_variants);
+        const result = _variants.find(variant => compareObjects(variant.options, productOption))
+        console.log("variant id:", result.id)
+        res.status(200).json({variantId: result.id})
+        
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 const getCustomerByEmail = async(query, variables={}) => {
