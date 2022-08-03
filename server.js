@@ -2,8 +2,8 @@ const express = require("express")
 const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery } = require("./query")
-const { compareObjects } = require("./utils")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery } = require("./query")
+const { compareObjects, fetchStoreFrontApi } = require("./utils")
 
 const app = express()
 
@@ -61,7 +61,6 @@ app.get("/products/:handle", async (req, res) => {
 
 app.post("/products/:handle", async (req, res) => {
     try {
-        console.log(req.body)
         const productOption = req.body
         const handle = req.params.handle
         const query = productVariantsByHandleQuery(handle)
@@ -78,15 +77,46 @@ app.post("/products/:handle", async (req, res) => {
             }
         } )
         
-        console.log(_variants);
         const result = _variants.find(variant => compareObjects(variant.options, productOption))
-        console.log("variant id:", result.id)
         res.status(200).json({variantId: result.id})
         
     } catch (error) {
         console.log(error)
     }
 })
+
+app.post("/add-to-cart", async (req, res) => {
+    const {variantId, quantity, cartId} = req.body
+    if (!cartId) {
+        const cart = await createCart(variantId, quantity)
+        const {id} = cart
+        console.log(id);
+        res.status(200).json({id, items: []})
+    } else {
+        console.log("already");
+        getCart(cartId)
+        res.status(200).json({id: cartId, items: []})
+    }
+})
+
+const createCart = async (variantId, quantity) => {
+    const query = createCartQuery(variantId, quantity)
+    const data = await fetchStoreFrontApi(query)
+    return data.data.cartCreate.cart
+}
+
+const getCart = async (cartId) => {
+    const query = cartQuery(cartId)
+    const data = await fetchStoreFrontApi(query)
+    const lines = data.data.cart.lines.edges.map(edge => edge.node)
+    const lineItems = lines.map(line => {
+        return {
+            ...line.merchandise.product,
+            quantity: line.quantity
+        }
+    })
+    return lineItems
+}
 
 const getCustomerByEmail = async(query, variables={}) => {
     const res = await fetch("https://kevin013.myshopify.com/admin/api/2022-07/graphql.json", {
@@ -100,6 +130,16 @@ const getCustomerByEmail = async(query, variables={}) => {
     const data = await res.json()
     return data
 }
+
+app.post("/get-cart-items", async( req, res) => {
+    const {cartId} = req.body
+    try {
+        const cartItems = await getCart(cartId)
+        res.status(200).json(cartItems)
+    } catch (error) {
+        console.log(error);        
+    }
+})
 
 app.post("/login", async (req, res) => {
     const {email, password} = req.body
