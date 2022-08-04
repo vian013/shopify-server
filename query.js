@@ -179,6 +179,53 @@ const createCartQuery = (variantId, quantity) => {
     `
 }
 
+const addToCartQuery = `
+    mutation cartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+      cartLinesAdd(cartId: $cartId, lines: $lines) {
+        cart {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `
+const updateCartQuery = `
+    mutation cartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
+      cartLinesUpdate(cartId: $cartId, lines: $lines) {
+        cart {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `
+const deleteCartItemQuery = `
+  mutation cartLinesRemove($cartId: ID!, $lineIds: [ID!]!) {
+    cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
+      cart {
+        id
+        lines(first: 20) {
+          edges {
+            node {
+              id
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`
+
 const cartQuery = (cartId) => {
   return `
     query {
@@ -197,7 +244,7 @@ const cartQuery = (cartId) => {
                 ... on ProductVariant {
                   id
                   product {
-                    id
+                    productId: id 
                     title
                   }
                 }
@@ -252,5 +299,8 @@ module.exports = {
     loginQuery,
     customerQuery,
     createCartQuery,
-    cartQuery
+    cartQuery,
+    addToCartQuery,
+    updateCartQuery,
+    deleteCartItemQuery
 }

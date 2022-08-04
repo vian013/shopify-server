@@ -2,8 +2,8 @@ const express = require("express")
 const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery } = require("./query")
-const { compareObjects, fetchStoreFrontApi } = require("./utils")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery } = require("./query")
+const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
 const app = express()
 
@@ -14,49 +14,46 @@ app.use(cors({
 }))
 app.use(cookieParser())
 
-const fetchData = async (query, variables = {}) => {
-    const res = await fetch("https://kevin013.myshopify.com/admin/api/2022-07/graphql.json", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": "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"
-        },
-        body: JSON.stringify({query, variables}) 
-    })
-    const data = await res.json()
-    return data
-}
-
 app.get("/products", async (req, res) => {
-    const data = await fetchData(productsQuery)
-    const products = data.data.products.edges.map(item => {
-        const product = item.node
-        const featuredImage = product.featuredImage.url
-        const variants = product.variants.edges.map(variant => variant.node)
-        return {
-            ...product,
-            featuredImage,
-            variants
-        }
-    })
-    res.status(200).json(products.reverse())
+    try {
+        const data = await fetchAdminApi(productsQuery)
+        if (!data.data) throw new Error("No data")
+        const products = data.data.products.edges.map(item => {
+            const product = item.node
+            const featuredImage = product.featuredImage.url
+            const variants = product.variants.edges.map(variant => variant.node)
+            return {
+                ...product,
+                featuredImage,
+                variants
+            }
+        })
+        res.status(200).json(products.reverse())
+    } catch (error) {
+        console.log(error)        
+    }
 })
 
 app.get("/products/:handle", async (req, res) => {
-    const handle = req.params.handle
-    const query = productByHandleQuery(handle)
-    const data = await fetchData(query)
-    const product = data.data.productByHandle
-    const variants = product.variants.edges.map(variant => variant.node)
-    const featuredImage = product.featuredImage.url
-    const images = product.images.edges.map(image => image.node)
-
-    res.status(200).json({
-        ...product,
-        variants,
-        featuredImage,
-        images
-    })
+    try {
+        const handle = req.params.handle
+        const query = productByHandleQuery(handle)
+        const data = await fetchAdminApi(query)
+        if (!data.data) throw new Error("No data")
+        const product = data.data.productByHandle
+        const variants = product.variants.edges.map(variant => variant.node)
+        const featuredImage = product.featuredImage.url
+        const images = product.images.edges.map(image => image.node)
+    
+        res.status(200).json({
+            ...product,
+            variants,
+            featuredImage,
+            images
+        })
+    } catch (error) {
+        console.log(error)        
+    }
 })
 
 app.post("/products/:handle", async (req, res) => {
@@ -64,7 +61,7 @@ app.post("/products/:handle", async (req, res) => {
         const productOption = req.body
         const handle = req.params.handle
         const query = productVariantsByHandleQuery(handle)
-        const data = await fetchData(query)
+        const data = await fetchAdminApi(query)
         const product = data.data.productByHandle
         const variants = product.variants.edges.map(variant => variant.node)
         const _variants = variants.map(variant => {
@@ -85,24 +82,78 @@ app.post("/products/:handle", async (req, res) => {
     }
 })
 
-app.post("/add-to-cart", async (req, res) => {
+app.post("/cart-item", async (req, res) => {
     const {variantId, quantity, cartId} = req.body
     if (!cartId) {
         const cart = await createCart(variantId, quantity)
         const {id} = cart
-        console.log(id);
         res.status(200).json({id, items: []})
     } else {
-        console.log("already");
-        getCart(cartId)
+        const cartItems  = await getCart(cartId)
+        // console.log("cart items:", cartItems);
+        const existed = cartItems.find(item => item.variantId === variantId)
+        // console.log("existed:", existed);
+        if (!existed) {
+            // console.log("add");
+            await addToCart(cartId, variantId, quantity)
+        } 
+        else {
+            // console.log("update");
+            const {quantity: existedQuantity, lineId} = existed
+            const newQuantity = quantity + existedQuantity
+            await updateCart(cartId, lineId, variantId, newQuantity)
+        }
         res.status(200).json({id: cartId, items: []})
     }
+})
+
+app.delete("/cart-item", async (req, res) => {
+    try {
+        console.log(req.body);
+        const {cartId, lineIds} = req.body
+        const variables = {
+            "cartId": cartId,
+            "lineIds": lineIds
+          }
+        const data = await fetchStoreFrontApi(deleteCartItemQuery, variables)
+        const {cart: {id}} = data.data.cartLinesRemove
+        res.status(200).json({id, items: []})
+    } catch (error) {
+        console.log(error)        
+    }
+
 })
 
 const createCart = async (variantId, quantity) => {
     const query = createCartQuery(variantId, quantity)
     const data = await fetchStoreFrontApi(query)
     return data.data.cartCreate.cart
+}
+
+const addToCart = async (cartId, variantId, quantity) => {
+    const variables = {
+        "cartId": cartId,
+        "lines": {
+          "merchandiseId": variantId,
+          "quantity": quantity
+        }
+    }
+
+    const data = await fetchStoreFrontApi(addToCartQuery, variables)
+    console.log(data)
+}
+
+const updateCart = async (cartId, lineId, variantId, newQuantity) => {
+    const variables = {
+        "cartId": cartId,
+        "lines": {
+          "id": lineId,
+          "merchandiseId": variantId,
+          "quantity": newQuantity
+        }
+    }
+
+    const data = await fetchStoreFrontApi(updateCartQuery, variables)
 }
 
 const getCart = async (cartId) => {
@@ -112,6 +163,8 @@ const getCart = async (cartId) => {
     const lineItems = lines.map(line => {
         return {
             ...line.merchandise.product,
+            variantId: line.merchandise.id,
+            lineId: line.id,
             quantity: line.quantity
         }
     })
@@ -131,11 +184,15 @@ const getCustomerByEmail = async(query, variables={}) => {
     return data
 }
 
-app.post("/get-cart-items", async( req, res) => {
-    const {cartId} = req.body
+app.get("/cart-items", async(req, res) => {
+    const {cartId} = req.query
     try {
-        const cartItems = await getCart(cartId)
-        res.status(200).json(cartItems)
+        if (cartId) {
+            const cartItems = await getCart(cartId)
+            res.status(200).json(cartItems)
+        } else {
+            res.status(200).json([])
+        }
     } catch (error) {
         console.log(error);        
     }
