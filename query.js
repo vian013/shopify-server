@@ -184,6 +184,20 @@ const addToCartQuery = `
       cartLinesAdd(cartId: $cartId, lines: $lines) {
         cart {
           id
+          totalQuantity
+          lines(first: 20) {
+            edges {
+              node {
+                id
+                quantity
+                merchandise {
+                  ... on ProductVariant {
+                    id
+                  }
+                }
+              }
+            }
+          }
         }
         userErrors {
           field
@@ -197,6 +211,20 @@ const updateCartQuery = `
       cartLinesUpdate(cartId: $cartId, lines: $lines) {
         cart {
           id
+          totalQuantity
+          lines(first: 20) {
+            edges {
+              node {
+                id
+                quantity
+                merchandise {
+                  ... on ProductVariant {
+                    id
+                  }
+                }
+              }
+            }
+          }
         }
         userErrors {
           field
@@ -235,6 +263,7 @@ const cartQuery = (cartId) => {
         id
         createdAt
         updatedAt
+        totalQuantity
         lines(first: 10) {
           edges {
             node {

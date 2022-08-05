@@ -84,26 +84,30 @@ app.post("/products/:handle", async (req, res) => {
 
 app.post("/cart-item", async (req, res) => {
     const {variantId, quantity, cartId} = req.body
-    if (!cartId) {
-        const cart = await createCart(variantId, quantity)
-        const {id} = cart
-        res.status(200).json({id, items: []})
-    } else {
-        const cartItems  = await getCart(cartId)
-        // console.log("cart items:", cartItems);
-        const existed = cartItems.find(item => item.variantId === variantId)
-        // console.log("existed:", existed);
-        if (!existed) {
-            // console.log("add");
-            await addToCart(cartId, variantId, quantity)
-        } 
-        else {
-            // console.log("update");
-            const {quantity: existedQuantity, lineId} = existed
-            const newQuantity = quantity + existedQuantity
-            await updateCart(cartId, lineId, variantId, newQuantity)
+    let outOfStockError = null
+
+    try {
+        if (!cartId) {
+            const cart = await createCart(variantId, quantity)
+            const {id} = cart
+            res.status(200).json({id, items: []})
+        } else {
+            const {items: cartItems}  = await getCart(cartId)
+            const existed = cartItems.find(item => item.variantId === variantId)
+            if (!existed) {
+                // console.log("add");
+                outOfStockError = await addToCart(cartId, variantId, quantity)
+            } 
+            else {
+                // console.log("update");
+                const {quantity: existedQuantity, lineId} = existed
+                const newQuantity = quantity + existedQuantity
+                outOfStockError = await updateCart(cartId, lineId, variantId, newQuantity)
+            }
+            res.status(200).json({id: cartId, items: [], outOfStockError})
         }
-        res.status(200).json({id: cartId, items: []})
+    } catch (error) {
+        console.log(error);        
     }
 })
 
@@ -140,7 +144,16 @@ const addToCart = async (cartId, variantId, quantity) => {
     }
 
     const data = await fetchStoreFrontApi(addToCartQuery, variables)
-    console.log(data)
+    const cart = data.data.cartLinesAdd.cart
+    const lines = cart.lines.edges.map(edge => edge.node)
+    const curLine = lines.find(line => line.merchandise.id === variantId)
+    if (curLine && curLine.quantity < quantity) {
+        return {
+            id: curLine.id,
+            maximumQuantity: curLine.quantity
+        }
+    }
+    return null
 }
 
 const updateCart = async (cartId, lineId, variantId, newQuantity) => {
@@ -154,12 +167,24 @@ const updateCart = async (cartId, lineId, variantId, newQuantity) => {
     }
 
     const data = await fetchStoreFrontApi(updateCartQuery, variables)
+    const cart = data.data.cartLinesUpdate.cart
+    const lines = cart.lines.edges.map(edge => edge.node)
+    const curLine = lines.find(line => line.id === lineId)
+    if (curLine && curLine.quantity < newQuantity) {
+        return {
+            id: curLine.id,
+            maximumQuantity: curLine.quantity
+        }
+    }
+    return null
 }
 
 const getCart = async (cartId) => {
     const query = cartQuery(cartId)
     const data = await fetchStoreFrontApi(query)
-    const lines = data.data.cart.lines.edges.map(edge => edge.node)
+    const cart = data.data.cart
+    const totalQuantity = cart.totalQuantity
+    const lines = cart.lines.edges.map(edge => edge.node)
     const lineItems = lines.map(line => {
         return {
             ...line.merchandise.product,
@@ -168,7 +193,10 @@ const getCart = async (cartId) => {
             quantity: line.quantity
         }
     })
-    return lineItems
+    return {
+        totalQuantity,
+        items: lineItems  
+    } 
 }
 
 const getCustomerByEmail = async(query, variables={}) => {
