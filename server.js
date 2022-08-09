@@ -16,23 +16,28 @@ app.use(cookieParser())
 
 app.get("/products", async (req, res) => {
     try {
-        const data = await fetchAdminApi(productsQuery)
-        if (!data.data) throw new Error("No data")
-        const products = data.data.products.edges.map(item => {
-            const product = item.node
-            const featuredImage = product.featuredImage.url
-            const variants = product.variants.edges.map(variant => variant.node)
-            return {
-                ...product,
-                featuredImage,
-                variants
-            }
-        })
+        const products = await getProducts()
         res.status(200).json(products.reverse())
     } catch (error) {
         console.log(error)        
     }
 })
+
+const getProducts = async () => {
+    const data = await fetchAdminApi(productsQuery)
+    if (!data.data) throw new Error("No data")
+    const products = data.data.products.edges.map(item => {
+        const product = item.node
+        const featuredImage = product.featuredImage.url
+        const variants = product.variants.edges.map(variant => variant.node)
+        return {
+            ...product,
+            featuredImage,
+            variants
+        }
+    })
+    return products
+}
 
 app.get("/products/:handle", async (req, res) => {
     try {
@@ -90,6 +95,8 @@ app.post("/cart-item", async (req, res) => {
         if (!cartId) {
             const cart = await createCart(variantId, quantity)
             const {id} = cart
+            res.setHeader('Access-Control-Allow-Credentials', true);
+            res.cookie("cartId", String(id))
             res.status(200).json({id, items: []})
         } else {
             const {items: cartItems}  = await getCart(cartId)
@@ -131,7 +138,8 @@ app.delete("/cart-item", async (req, res) => {
 const createCart = async (variantId, quantity) => {
     const query = createCartQuery(variantId, quantity)
     const data = await fetchStoreFrontApi(query)
-    return data.data.cartCreate.cart
+    const cart = data.data.cartCreate.cart
+    return cart
 }
 
 const addToCart = async (cartId, variantId, quantity) => {
@@ -216,6 +224,7 @@ app.get("/cart-items", async(req, res) => {
     const {cartId} = req.query
     try {
         if (cartId) {
+            console.log(cartId);
             const cartItems = await getCart(cartId)
             res.status(200).json(cartItems)
         } else {
@@ -225,6 +234,31 @@ app.get("/cart-items", async(req, res) => {
         console.log(error);        
     }
 })
+
+app.get("/search", async(req, res) => {
+    try {
+        const {term, type} = req.query
+        const products = await getProducts()
+        const results = products.filter(product => product.title.toLowerCase().includes(term))
+        const _results = results.map(result => {
+            const replaceReg = new RegExp(term, "gi")
+            const replaceHtml = `<strong class="hightlight">${term}</strong>`
+            const newTitle = result.title.replace(replaceReg, replaceHtml)
+            const titleHtml = `<span class="title">${newTitle}</span>`
+            const link = `/products/${result.handle}`
+            
+            return {
+                ...result,
+                titleHtml,
+                link
+            }
+        })
+        res.status(200).json(_results.slice(0, 10))
+    } catch (error) {
+        console.log(error);        
+    }
+})
+
 
 app.post("/login", async (req, res) => {
     const {email, password} = req.body

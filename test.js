@@ -23,12 +23,20 @@ const variables = {}
 // }).then(res => res.json())
 // .then(data => console.log(data))
 
-fetch("https://kevin013.myshopify.com/api/2022-07/graphql.json", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Storefront-Access-Token": "e3b382f282ff55c62fe5ef666274306a"
-        },
-        body: JSON.stringify({query, variables}),
-}).then(res => res.json())
-.then(data => console.log(data))
+// fetch("https://kevin013.myshopify.com/api/2022-07/graphql.json", {
+//         method: "POST",
+//         headers: {
+//             "Content-Type": "application/json",
+//             "X-Shopify-Storefront-Access-Token": "e3b382f282ff55c62fe5ef666274306a"
+//         },
+//         body: JSON.stringify({query, variables}),
+// }).then(res => res.json())
+// .then(data => console.log(data))
+
+
+
+const s = 'VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE'
+const reg = new RegExp("aut", "g")
+const s1 = s.replace(reg, "hihi")
+
+console.log(s1);
