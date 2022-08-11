@@ -7,20 +7,21 @@ const productsQuery = `
           title
           description
           featuredImage {
-          id
-          url
+            id
+            url
           }
           handle
           variants(first:5) {
-          edges {
-              node {
-              id
-              title
-              price
-              }
-          }
+            edges {
+                node {
+                  id
+                  title
+                  price
+                }
+            }
           }
           vendor
+          totalInventory
 	    }
 	  }
 	} 
@@ -148,28 +149,6 @@ const createCartQuery = (variantId, quantity) => {
                     }
                   }
                 }
-              }
-            }
-            attributes {
-              key
-              value
-            }
-            cost {
-              totalAmount {
-                amount
-                currencyCode
-              }
-              subtotalAmount {
-                amount
-                currencyCode
-              }
-              totalTaxAmount {
-                amount
-                currencyCode
-              }
-              totalDutyAmount {
-                amount
-                currencyCode
               }
             }
           }
@@ -321,6 +300,91 @@ const cartQuery = (cartId) => {
   `
 }
 
+const getProductVariantsQuery = (size, color) => {
+  let queryTitle
+  if (size && color) queryTitle = `title:${size} / ${color}`
+  if (size) queryTitle = `title:${size}*` 
+  if (color) queryTitle = `title:${color}*` 
+  
+  return `
+    {
+      productVariants(first: 20, query: "${queryTitle}") {
+        edges {
+          node {
+            id,
+            title,
+            inventoryQuantity,
+            price,
+            product {
+              id
+              title
+              description
+              featuredImage {
+                id
+                url
+              }
+              handle
+              vendor
+              totalInventory
+              variants(first: 20) {
+                edges {
+                  node {
+                    id,
+                    price,
+                    selectedOptions {
+                      name,
+                      value
+                    }
+                  }
+                }
+              }
+            },
+            selectedOptions {
+              name
+              value
+            }
+          }
+        }
+      }
+    }
+  `
+}
+
+const getProductsByPriceQuery = (minPrice, maxPrice) => {
+  return `
+  {
+    products(first: 20, reverse: true, query: "price:>${minPrice} AND price:<${maxPrice}") {
+      edges {
+        node {
+          id
+          title
+          description
+          featuredImage {
+            id
+            url
+          }
+          handle
+          vendor
+          totalInventory
+          variants(first: 20) {
+            edges {
+              node {
+                id,
+                price,
+                selectedOptions {
+                  name,
+                  value
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  `
+}
+
 module.exports = {
     productsQuery,
     productByHandleQuery,
@@ -331,5 +395,7 @@ module.exports = {
     cartQuery,
     addToCartQuery,
     updateCartQuery,
-    deleteCartItemQuery
+    deleteCartItemQuery,
+    getProductVariantsQuery,
+    getProductsByPriceQuery
 }

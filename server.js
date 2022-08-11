@@ -2,7 +2,7 @@ const express = require("express")
 const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery } = require("./query")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getProductVariantsQuery, getProductsByPrice, getProductsByPriceQuery } = require("./query")
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
 const app = express()
@@ -26,8 +26,8 @@ app.get("/products", async (req, res) => {
 const getProducts = async () => {
     const data = await fetchAdminApi(productsQuery)
     if (!data.data) throw new Error("No data")
-    const products = data.data.products.edges.map(item => {
-        const product = item.node
+    const products = data.data.products.edges.map(edge => {
+        const product = edge.node
         const featuredImage = product.featuredImage.url
         const variants = product.variants.edges.map(variant => variant.node)
         return {
@@ -207,19 +207,6 @@ const getCart = async (cartId) => {
     } 
 }
 
-const getCustomerByEmail = async(query, variables={}) => {
-    const res = await fetch("https://kevin013.myshopify.com/admin/api/2022-07/graphql.json", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": "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"
-        },
-        body: JSON.stringify({query, variables})
-    })
-    const data = await res.json()
-    return data
-}
-
 app.get("/cart-items", async(req, res) => {
     const {cartId} = req.query
     try {
@@ -270,21 +257,13 @@ app.post("/login", async (req, res) => {
         }
     }
 
-    const result = await fetch("https://kevin013.myshopify.com/api/2022-07/graphql.json", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Storefront-Access-Token": "a2dd507dc76d0a2fad44319092092001"
-        },
-        body: JSON.stringify({query, variables}),
-    })
-    const data = await result.json()
+    const data = await fetchStoreFrontApi(query, variables)
     const {customerUserErrors, customerAccessToken} = data.data.customerAccessTokenCreate
     if (customerAccessToken && customerUserErrors.length === 0) {
         console.log(customerAccessToken) 
         res.setHeader('Access-Control-Allow-Credentials', true);
         res.cookie("sid", "123")
-        const data = await getCustomerByEmail(customerQuery(email))
+        const data = await fetchAdminApi(customerQuery(email))
         const customer = data.data.customers.edges[0].node
         res.status(200).json(customer)
     }
@@ -293,6 +272,105 @@ app.post("/login", async (req, res) => {
             error: "Invalid email or password!"
         })
     } 
+})
+
+const getProductVariants = async (size, color) => {
+    try {
+        const data = await fetchAdminApi(getProductVariantsQuery(size, color))
+        const variants = data.data.productVariants.edges.map(edge => edge.node)
+        return variants
+    } catch (error) {
+        console.log(error);        
+    }
+}
+
+
+
+app.get("/product-variants", async(req, res) => {
+    const {size, color, minPrice, maxPrice, all} = req.query
+    console.log(size, color, minPrice, maxPrice, all);
+    let products = []
+    const colors = {}
+    const colorProductIds = {}
+    const sizes = {}
+    const sizeProductIds = {}
+    let _selectedOptions = []
+    let _product = {}
+
+    const getColorsAndSizes = () => {
+        const sizeValue = _selectedOptions[0].value 
+        if (!(sizeValue in sizes)) {
+            sizeProductIds[sizeValue] = new Set()
+            sizes[sizeValue] = 0
+        } 
+        if (!sizeProductIds[sizeValue].has(_product.id)) {
+            sizes[sizeValue]++
+            sizeProductIds[sizeValue].add(_product.id)
+        }
+        
+        const colorValue = _selectedOptions[1].value 
+        if (!(colorValue in colors)) {
+            colorProductIds[colorValue] = new Set()
+            colors[colorValue] = 0
+        } 
+        if (!colorProductIds[colorValue].has(_product.id)) {
+            colors[colorValue]++
+            colorProductIds[colorValue].add(_product.id)
+        }
+    }
+    
+    try {
+        if (!size && !color) {
+            const data = await fetchAdminApi(getProductsByPriceQuery(minPrice, maxPrice))
+            if (!data.data) return
+            products = data.data.products.edges.map(edge => {
+                const product = edge.node
+                const featuredImage = product.featuredImage.url
+                const variants = product.variants.edges.map(variant => variant.node)
+                variants.forEach(({selectedOptions}) => {
+                    if (selectedOptions.length === 2) _selectedOptions = selectedOptions
+                    _product = product
+                    getColorsAndSizes()
+                })
+                return {
+                    ...product,
+                    featuredImage,
+                    variants,
+                    price: variants[0].price
+                }
+            })
+            // console.log("sizes", sizes);
+            // console.log("colors", colors);
+            res.status(200).json({products, colors, sizes})
+    } else {
+            const productIds = new Set()
+            console.log("variant");
+            const variants = await getProductVariants(size, color)
+            variants.forEach(({price, product, selectedOptions}) => {
+                _selectedOptions = selectedOptions
+                _product = product
+                getColorsAndSizes()
+                const featuredImage = product.featuredImage.url
+                const variants = product.variants.edges.map(variant => variant.node)
+                if (price >= Number(minPrice) && price <= Number(maxPrice) && !productIds.has(product.id)) {
+                    products.push({
+                        ...product,
+                        featuredImage,
+                        variants,
+                        price
+                    })
+                } 
+                productIds.add(product.id)
+            })
+            console.log(productIds);
+            console.log(products);
+            // console.log(sizes);
+            // console.log(colors);
+            res.status(200).json({products, colors, sizes})
+        }
+    } catch (error) {
+        console.log(error)        
+    }
 })
 
 const users = {

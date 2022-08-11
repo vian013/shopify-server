@@ -34,9 +34,4 @@ const variables = {}
 // .then(data => console.log(data))
 
 
-
-const s = 'VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE'
-const reg = new RegExp("aut", "g")
-const s1 = s.replace(reg, "hihi")
-
-console.log(s1);
+console.log(typeof 0);
