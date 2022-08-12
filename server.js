@@ -2,9 +2,10 @@ const express = require("express")
 const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getProductVariantsQuery, getProductsByPrice, getProductsByPriceQuery } = require("./query")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery } = require("./query")
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
+let allProducts = []
 const app = express()
 
 app.use(express.json())
@@ -274,103 +275,88 @@ app.post("/login", async (req, res) => {
     } 
 })
 
-const getProductVariants = async (size, color) => {
-    try {
-        const data = await fetchAdminApi(getProductVariantsQuery(size, color))
-        const variants = data.data.productVariants.edges.map(edge => edge.node)
-        return variants
-    } catch (error) {
-        console.log(error);        
-    }
-}
-
-
-
-app.get("/product-variants", async(req, res) => {
-    const {size, color, minPrice, maxPrice, all} = req.query
-    console.log(size, color, minPrice, maxPrice, all);
-    let products = []
+const filterProducts = (size, color, minPrice, maxPrice, all) => {
+    let _products = []
     const colors = {}
     const colorProductIds = {}
     const sizes = {}
     const sizeProductIds = {}
-    let _selectedOptions = []
-    let _product = {}
 
-    const getColorsAndSizes = () => {
-        const sizeValue = _selectedOptions[0].value 
+    const getColorsAndSizes = (selectedOptions, product) => {
+        const sizeValue = selectedOptions[0].value 
         if (!(sizeValue in sizes)) {
             sizeProductIds[sizeValue] = new Set()
             sizes[sizeValue] = 0
         } 
-        if (!sizeProductIds[sizeValue].has(_product.id)) {
+        if (!sizeProductIds[sizeValue].has(product.id)) {
             sizes[sizeValue]++
-            sizeProductIds[sizeValue].add(_product.id)
         }
+        sizeProductIds[sizeValue].add(product.id)
         
-        const colorValue = _selectedOptions[1].value 
+        const colorValue = selectedOptions[1].value 
+
         if (!(colorValue in colors)) {
             colorProductIds[colorValue] = new Set()
             colors[colorValue] = 0
         } 
-        if (!colorProductIds[colorValue].has(_product.id)) {
+        if (!colorProductIds[colorValue].has(product.id)) {
             colors[colorValue]++
-            colorProductIds[colorValue].add(_product.id)
         }
+        colorProductIds[colorValue].add(product.id)
     }
+
+    if (all) _products = allProducts
+    else if (!size && !color){
+        _products = allProducts.filter(product => {
+            const variants = product.variants.edges.map(variant => variant.node)
+            return (variants.some(variant => variant.price >= minPrice) && variants.some(variant => variant.price <= maxPrice))
+        })
+    } else if (size && !color) {
+        _products = allProducts.filter(product => {
+            const variants = product.variants.edges.map(variant => variant.node)
+            return (variants.some(({selectedOptions, price}) => {
+                return selectedOptions[0].value === size && price >= minPrice && price <= maxPrice
+            }))
+        })
+    } else if (!size && color) {
+        _products = allProducts.filter(product => {
+            const variants = product.variants.edges.map(variant => variant.node)
+            return (variants.some(({selectedOptions, price}) => {
+                return selectedOptions[1].value === color && price >= minPrice && price <= maxPrice
+            }))
+        })
+    } else if (size && color) {
+        _products = allProducts.filter(product => {
+            const variants = product.variants.edges.map(variant => variant.node)
+            return (variants.some(({selectedOptions, price}) => {
+                return (selectedOptions[0].value === size && selectedOptions[1].value === color && price >= minPrice && price <= maxPrice)
+            }))
+        })
+    }
+
+    const products = _products.map(product => {
+        const featuredImage = product.featuredImage.url
+        const variants = product.variants.edges.map(variant => variant.node)
+        variants.forEach(({selectedOptions}) => {
+            if (selectedOptions.length === 2) getColorsAndSizes(selectedOptions, product)
+        })
+        return {
+            ...product,
+            featuredImage,
+            variants,
+            price: variants[0].price
+        }
+    })
     
-    try {
-        if (!size && !color) {
-            const data = await fetchAdminApi(getProductsByPriceQuery(minPrice, maxPrice))
-            if (!data.data) return
-            products = data.data.products.edges.map(edge => {
-                const product = edge.node
-                const featuredImage = product.featuredImage.url
-                const variants = product.variants.edges.map(variant => variant.node)
-                variants.forEach(({selectedOptions}) => {
-                    if (selectedOptions.length === 2) _selectedOptions = selectedOptions
-                    _product = product
-                    getColorsAndSizes()
-                })
-                return {
-                    ...product,
-                    featuredImage,
-                    variants,
-                    price: variants[0].price
-                }
-            })
-            // console.log("sizes", sizes);
-            // console.log("colors", colors);
-            res.status(200).json({products, colors, sizes})
-    } else {
-            const productIds = new Set()
-            console.log("variant");
-            const variants = await getProductVariants(size, color)
-            variants.forEach(({price, product, selectedOptions}) => {
-                _selectedOptions = selectedOptions
-                _product = product
-                getColorsAndSizes()
-                const featuredImage = product.featuredImage.url
-                const variants = product.variants.edges.map(variant => variant.node)
-                if (price >= Number(minPrice) && price <= Number(maxPrice) && !productIds.has(product.id)) {
-                    products.push({
-                        ...product,
-                        featuredImage,
-                        variants,
-                        price
-                    })
-                } 
-                productIds.add(product.id)
-            })
-            console.log(productIds);
-            console.log(products);
-            // console.log(sizes);
-            // console.log(colors);
-            res.status(200).json({products, colors, sizes})
-        }
-    } catch (error) {
-        console.log(error)        
-    }
+    return {products, colors, sizes}
+}
+
+app.get("/product-variants", async(req, res) => {
+    const {size, color, minPrice, maxPrice, all} = req.query
+    console.log(size, color, minPrice, maxPrice, all)
+    const {products, colors, sizes} = filterProducts(size, color, Number(minPrice), Number(maxPrice), all)
+    res.status(200).json({products, colors, sizes})
+
 })
 
 const users = {
@@ -394,6 +380,31 @@ app.get("/logout", (req, res) => {
     res.send()
 })
 
-const server = app.listen(4000, () => {
+const fetchAllProducts = async () => {
+    let hasNext = true
+    let products = []
+    let endCursor = ""
+    console.log("fetch all products...");
+
+    while (hasNext) {
+        const data = await fetchAdminApi(getAllProductsQuery(endCursor))
+        let _products = []
+        if (data.data) _products = data.data.products.edges.map(edge => edge.node)
+        products =[...products, ..._products]
+        hasNext = data.data.products.pageInfo.hasNextPage
+        endCursor = data.data.products.pageInfo.endCursor
+        await delay(4000)
+    }
+
+    return products
+}
+
+const delay = (time) => {
+    return new Promise(resolve => setTimeout(() => resolve(), time))
+}
+
+const server = app.listen(4000, async() => {
     console.log("listening...");
+    allProducts = await fetchAllProducts()
+    console.log("fetch done!");
 })
