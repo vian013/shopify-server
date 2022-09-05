@@ -7,20 +7,21 @@ const productsQuery = `
           title
           description
           featuredImage {
-          id
-          url
+            id
+            url
           }
           handle
           variants(first:5) {
-          edges {
-              node {
-              id
-              title
-              price
-              }
-          }
+            edges {
+                node {
+                  id
+                  title
+                  price
+                }
+            }
           }
           vendor
+          totalInventory
 	    }
 	  }
 	} 
@@ -148,28 +149,6 @@ const createCartQuery = (variantId, quantity) => {
                     }
                   }
                 }
-              }
-            }
-            attributes {
-              key
-              value
-            }
-            cost {
-              totalAmount {
-                amount
-                currencyCode
-              }
-              subtotalAmount {
-                amount
-                currencyCode
-              }
-              totalTaxAmount {
-                amount
-                currencyCode
-              }
-              totalDutyAmount {
-                amount
-                currencyCode
               }
             }
           }
@@ -321,6 +300,47 @@ const cartQuery = (cartId) => {
   `
 }
 
+const getAllProductsQuery = (endCursor) => {
+  return `
+  {
+      products(first: 20, reverse: true, ${endCursor&&`, after: "${endCursor}"`}) {
+          pageInfo{
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            id
+            title
+            description
+            featuredImage {
+              id
+              url
+            }
+            handle
+            vendor
+            totalInventory
+            variants(first: 20) {
+              edges {
+                node {
+                  id
+                  title
+                  price
+                  selectedOptions {
+                    name,
+                    value
+                  }
+                  inventoryQuantity
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `
+}
+
 module.exports = {
     productsQuery,
     productByHandleQuery,
@@ -331,5 +351,6 @@ module.exports = {
     cartQuery,
     addToCartQuery,
     updateCartQuery,
-    deleteCartItemQuery
+    deleteCartItemQuery,
+    getAllProductsQuery
 }
