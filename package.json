@@ -17,5 +17,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "nodemonConfig": {
+    "ignore": ["test.js"]
+  }
 }

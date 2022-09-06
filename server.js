@@ -2,7 +2,7 @@ const express = require("express")
 const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery } = require("./query")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQ, getCollectionProductsQuery, blogArticlesByHandleQuery } = require("./query")
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
 let allProducts = []
@@ -248,33 +248,6 @@ app.get("/search", async(req, res) => {
 })
 
 
-app.post("/login", async (req, res) => {
-    const {email, password} = req.body
-    const query = loginQuery
-    const variables = {
-        "input": {
-            "email": email,
-            "password": password
-        }
-    }
-
-    const data = await fetchStoreFrontApi(query, variables)
-    const {customerUserErrors, customerAccessToken} = data.data.customerAccessTokenCreate
-    if (customerAccessToken && customerUserErrors.length === 0) {
-        console.log(customerAccessToken) 
-        res.setHeader('Access-Control-Allow-Credentials', true);
-        res.cookie("sid", "123")
-        const data = await fetchAdminApi(customerQuery(email))
-        const customer = data.data.customers.edges[0].node
-        res.status(200).json(customer)
-    }
-    if (!customerAccessToken && customerUserErrors.length > 0) {
-        res.status(400).json({
-            error: "Invalid email or password!"
-        })
-    } 
-})
-
 const filterProducts = (size, color, minPrice, maxPrice, all) => {
     let _products = []
     const colors = {}
@@ -334,21 +307,29 @@ const filterProducts = (size, color, minPrice, maxPrice, all) => {
         })
     }
 
-    const products = _products.map(product => {
+    const products = processProducts(_products, getColorsAndSizes)
+    
+    return {products, colors, sizes}
+}
+
+const processProducts = (products, getColorsAndSizes) => {
+    return products.map(product => {
         const featuredImage = product.featuredImage.url
         const variants = product.variants.edges.map(variant => variant.node)
-        variants.forEach(({selectedOptions}) => {
-            if (selectedOptions.length === 2) getColorsAndSizes(selectedOptions, product)
-        })
+        if (getColorsAndSizes) {
+            variants.forEach(({selectedOptions}) => {
+                if (selectedOptions.length === 2) getColorsAndSizes(selectedOptions, product)
+            })
+        }
+        const images = product.images.edges.map(image => image.node)
         return {
             ...product,
             featuredImage,
             variants,
+            images,
             price: variants[0].price
         }
     })
-    
-    return {products, colors, sizes}
 }
 
 app.get("/product-variants", async(req, res) => {
@@ -358,6 +339,69 @@ app.get("/product-variants", async(req, res) => {
     res.status(200).json({products, colors, sizes})
 
 })
+
+app.get("/collections/:handle", async(req, res) => {
+    const {handle} = req.params
+    try {
+        const result = await fetchAdminApi(getCollectionProductsQuery(handle))
+        const _products = result.data.collectionByHandle.products.edges.map(edge => edge.node)
+        const products = processProducts(_products)
+        res.status(200).json(products)
+    } catch (error) {
+        console.log(error);        
+    }
+})
+
+app.get("/blogs/:handle", async(req, res) => {
+    const {handle} = req.params 
+    if (!handle) return
+    try {
+        const result = await fetchStoreFrontApi(blogArticlesByHandleQuery(handle))
+        const _articles = result.data.blog.articles.edges.map(edge => edge.node)
+        const articles = _articles.map(article => {
+            const {title, handle} = article
+            const imgUrl = article.image.url
+            const publishedAt = new Date(article.publishedAt).toDateString()
+            return {
+                title,
+                publishedAt,
+                handle,
+                imgUrl
+            }
+        })
+        res.status(200).json(articles)
+    } catch (error) {
+        
+    }
+})
+
+app.post("/login", async (req, res) => {
+    const {email, password} = req.body
+    const query = loginQuery
+    const variables = {
+        "input": {
+            "email": email,
+            "password": password
+        }
+    }
+
+    const data = await fetchStoreFrontApi(query, variables)
+    const {customerUserErrors, customerAccessToken} = data.data.customerAccessTokenCreate
+    if (customerAccessToken && customerUserErrors.length === 0) {
+        console.log(customerAccessToken) 
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.cookie("sid", "123")
+        const data = await fetchAdminApi(customerQuery(email))
+        const customer = data.data.customers.edges[0].node
+        res.status(200).json(customer)
+    }
+    if (!customerAccessToken && customerUserErrors.length > 0) {
+        res.status(400).json({
+            error: "Invalid email or password!"
+        })
+    } 
+})
+
 
 const users = {
     "123": {
@@ -393,7 +437,7 @@ const fetchAllProducts = async () => {
         products =[...products, ..._products]
         hasNext = data.data.products.pageInfo.hasNextPage
         endCursor = data.data.products.pageInfo.endCursor
-        await delay(4000)
+        if (hasNext) await delay(4000)
     }
 
     return products

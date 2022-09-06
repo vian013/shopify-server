@@ -303,7 +303,7 @@ const cartQuery = (cartId) => {
 const getAllProductsQuery = (endCursor) => {
   return `
   {
-      products(first: 20, reverse: true, ${endCursor&&`, after: "${endCursor}"`}) {
+      products(first: 18, reverse: true, ${endCursor&&`, after: "${endCursor}"`}) {
           pageInfo{
           hasNextPage
           endCursor
@@ -313,6 +313,14 @@ const getAllProductsQuery = (endCursor) => {
             id
             title
             description
+            images(first: 5) {
+              edges {
+                node {
+                  id
+                  url
+                }
+              }
+            }
             featuredImage {
               id
               url
@@ -320,7 +328,7 @@ const getAllProductsQuery = (endCursor) => {
             handle
             vendor
             totalInventory
-            variants(first: 20) {
+            variants(first: 15) {
               edges {
                 node {
                   id
@@ -341,6 +349,83 @@ const getAllProductsQuery = (endCursor) => {
   `
 }
 
+const getCollectionProductsQuery = (handle) => {
+  return `
+    {
+      collectionByHandle(handle: "${handle}") {
+        id
+        title
+        products(first: 20) {
+          edges {
+            node{
+              id
+              title
+              description
+              images(first: 5) {
+                edges {
+                  node {
+                    id
+                    url
+                  }
+                }
+              }
+              featuredImage {
+                id
+                url
+              }
+              handle
+              vendor
+              totalInventory
+              variants(first: 15) {
+                edges {
+                  node {
+                    id
+                    title
+                    price
+                    selectedOptions {
+                      name,
+                      value
+                    }
+                    inventoryQuantity
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `
+}
+
+const blogArticlesByHandleQuery = (handle) => {
+  return `
+    {
+      blog(handle: "${handle}") {
+        id
+        articles(first: 5) {
+          edges {
+            node {
+              id
+              contentHtml
+              image {
+                id
+                url
+              }
+              title
+              authorV2 {
+                name
+              }
+              publishedAt,
+              handle
+            }
+          }
+        }
+      }
+  }
+  `
+}
+
 module.exports = {
     productsQuery,
     productByHandleQuery,
@@ -352,5 +437,7 @@ module.exports = {
     addToCartQuery,
     updateCartQuery,
     deleteCartItemQuery,
-    getAllProductsQuery
+    getAllProductsQuery,
+    getCollectionProductsQuery,
+    blogArticlesByHandleQuery
 }
