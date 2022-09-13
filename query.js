@@ -368,6 +368,24 @@ const getAllProductsQuery = (endCursor) => {
   `
 }
 
+const getCollectionsQuery = `
+{
+  collections(first: 5) {
+    edges {
+      node {
+         id
+         title
+         image {
+           id
+           url
+         }
+         handle
+      }
+    }
+  }
+ }
+`
+
 const getCollectionProductsQuery = (handle) => {
   return `
     {
@@ -458,5 +476,6 @@ module.exports = {
     deleteCartItemQuery,
     getAllProductsQuery,
     getCollectionProductsQuery,
-    blogArticlesByHandleQuery
+    blogArticlesByHandleQuery,
+    getCollectionsQuery
 }

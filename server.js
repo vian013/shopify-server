@@ -2,7 +2,7 @@ const express = require("express")
 const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQ, getCollectionProductsQuery, blogArticlesByHandleQuery } = require("./query")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQ, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery } = require("./query")
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
 let allProducts = []
@@ -352,6 +352,28 @@ app.get("/product-variants", async(req, res) => {
     const {products, colors, sizes} = filterProducts(size, color, Number(minPrice), Number(maxPrice), all)
     res.status(200).json({products, colors, sizes})
 
+})
+
+app.get("/collections", async(req, res) =>{
+    try {
+        const result = await fetchAdminApi(getCollectionsQuery)
+        console.log(result.data);
+        const collections = result.data.collections.edges
+        .map(edge => edge.node)
+        .map(collection => {
+            const {title, handle, image} = collection
+            const imgUrl = image.url
+            return {
+                title,
+                handle,
+                imgUrl                
+            }
+        })
+
+        res.status(200).json(collections)  
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.get("/collections/:handle", async(req, res) => {
