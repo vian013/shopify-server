@@ -243,6 +243,17 @@ const cartQuery = (cartId) => {
         createdAt
         updatedAt
         totalQuantity
+        cost {
+          subtotalAmount {
+            amount
+          }
+          totalAmount {
+            amount
+          }
+          totalTaxAmount {
+            amount
+          }
+        }
         lines(first: 10) {
           edges {
             node {
@@ -251,9 +262,17 @@ const cartQuery = (cartId) => {
               merchandise {
                 ... on ProductVariant {
                   id
+                  title
+                  priceV2 {
+                    amount
+                  }
                   product {
                     productId: id 
                     title
+                    featuredImage {
+                      id
+                      url
+                    }
                   }
                 }
               }
