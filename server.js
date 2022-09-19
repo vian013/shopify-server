@@ -1,8 +1,7 @@
 const express = require("express")
-const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQ, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery } = require("./query")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery, } = require("./query")
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
 let allProducts = []
@@ -343,7 +342,6 @@ app.get("/product-variants", async(req, res) => {
 app.get("/collections", async(req, res) =>{
     try {
         const result = await fetchAdminApi(getCollectionsQuery)
-        console.log(result.data);
         const collections = result.data.collections.edges
         .map(edge => edge.node)
         .map(collection => {
