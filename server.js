@@ -102,11 +102,9 @@ app.post("/cart-item", async (req, res) => {
             const {items: cartItems}  = await getCart(cartId)
             const existed = cartItems.find(item => item.variantId === variantId)
             if (!existed) {
-                // console.log("add");
                 outOfStockError = await addToCart(cartId, variantId, quantity)
             } 
             else {
-                // console.log("update");
                 const {quantity: existedQuantity, lineId} = existed
                 const newQuantity = quantity + existedQuantity
                 outOfStockError = await updateCart(cartId, lineId, variantId, newQuantity)
@@ -120,7 +118,6 @@ app.post("/cart-item", async (req, res) => {
 
 app.delete("/cart-item", async (req, res) => {
     try {
-        console.log(req.body);
         const {cartId, lineIds} = req.body
         const variables = {
             "cartId": cartId,
@@ -192,18 +189,36 @@ const getCart = async (cartId) => {
     const data = await fetchStoreFrontApi(query)
     const cart = data.data.cart
     const totalQuantity = cart.totalQuantity
+    let subTotal = 0
+    let totalTax = 0
+    let total = 0
+    if (totalQuantity > 0) {
+        subTotal = cart.cost.subtotalAmount.amount
+        totalTax = cart.cost.totalTaxAmount.amount
+        total = cart.cost.totalAmount.amount
+    }
     const lines = cart.lines.edges.map(edge => edge.node)
     const lineItems = lines.map(line => {
+        const product = line.merchandise.product
+        const imgUrl = product.featuredImage.url
+        const options = line.merchandise.title
+        const price = line.merchandise.priceV2.amount
         return {
-            ...line.merchandise.product,
+            ...product,
+            imgUrl,
             variantId: line.merchandise.id,
             lineId: line.id,
-            quantity: line.quantity
+            quantity: line.quantity,
+            price,
+            options
         }
     })
     return {
         totalQuantity,
-        items: lineItems  
+        items: lineItems,  
+        subTotal,
+        total,
+        totalTax
     } 
 }
 
@@ -211,7 +226,6 @@ app.get("/cart-items", async(req, res) => {
     const {cartId} = req.query
     try {
         if (cartId) {
-            console.log(cartId);
             const cartItems = await getCart(cartId)
             res.status(200).json(cartItems)
         } else {
@@ -333,7 +347,6 @@ const processProducts = (products, getColorsAndSizes) => {
 
 app.get("/product-variants", async(req, res) => {
     const {size, color, minPrice, maxPrice, all} = req.query
-    console.log(size, color, minPrice, maxPrice, all)
     const {products, colors, sizes} = filterProducts(size, color, Number(minPrice), Number(maxPrice), all)
     res.status(200).json({products, colors, sizes})
 
@@ -374,22 +387,30 @@ app.get("/collections/:handle", async(req, res) => {
 
 app.get("/blogs/:handle", async(req, res) => {
     const {handle} = req.params 
+    const {startCursor, endCursor, tag} = req.query
+    console.log("tag:", tag);
+    const query = blogArticlesByHandleQuery(startCursor, endCursor, tag)
+    console.log(query);
+    
     if (!handle) return
     try {
-        const result = await fetchStoreFrontApi(blogArticlesByHandleQuery(handle))
-        const _articles = result.data.blog.articles.edges.map(edge => edge.node)
+        const result = await fetchStoreFrontApi(query)
+        const _articles = result.data.articles.edges.map(edge => edge.node)
+        const pageInfo = result.data.articles.pageInfo
+        const {hasNextPage, hasPreviousPage, startCursor, endCursor} = pageInfo
         const articles = _articles.map(article => {
-            const {title, handle} = article
+            const {title, handle, excerpt} = article
             const imgUrl = article.image.url
             const publishedAt = new Date(article.publishedAt).toDateString()
             return {
                 title,
                 publishedAt,
                 handle,
-                imgUrl
+                imgUrl,
+                excerpt
             }
         })
-        res.status(200).json(articles)
+        res.status(200).json({articles, hasNextPage, hasPreviousPage, startCursor, endCursor})
     } catch (error) {
         
     }
@@ -408,7 +429,6 @@ app.post("/login", async (req, res) => {
     const data = await fetchStoreFrontApi(query, variables)
     const {customerUserErrors, customerAccessToken} = data.data.customerAccessTokenCreate
     if (customerAccessToken && customerUserErrors.length === 0) {
-        console.log(customerAccessToken) 
         res.setHeader('Access-Control-Allow-Credentials', true);
         res.cookie("sid", "123")
         const data = await fetchAdminApi(customerQuery(email))
@@ -439,7 +459,6 @@ app.get("/user", (req, res) => {
 })
 
 app.get("/logout", (req, res) => {
-    console.log("delete sid");
     res.clearCookie("sid", {domain: "localhost", path: "/"})
     res.send()
 })
@@ -448,7 +467,7 @@ const fetchAllProducts = async () => {
     let hasNext = true
     let products = []
     let endCursor = ""
-    console.log("fetch all products...");
+    console.log("fetching all products...")
 
     while (hasNext) {
         const data = await fetchAdminApi(getAllProductsQuery(endCursor))

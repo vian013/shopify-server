@@ -243,6 +243,17 @@ const cartQuery = (cartId) => {
         createdAt
         updatedAt
         totalQuantity
+        cost {
+          subtotalAmount {
+            amount
+          }
+          totalAmount {
+            amount
+          }
+          totalTaxAmount {
+            amount
+          }
+        }
         lines(first: 10) {
           edges {
             node {
@@ -251,9 +262,17 @@ const cartQuery = (cartId) => {
               merchandise {
                 ... on ProductVariant {
                   id
+                  title
+                  priceV2 {
+                    amount
+                  }
                   product {
                     productId: id 
                     title
+                    featuredImage {
+                      id
+                      url
+                    }
                   }
                 }
               }
@@ -416,31 +435,47 @@ const getCollectionProductsQuery = (handle) => {
   `
 }
 
-const blogArticlesByHandleQuery = (handle) => {
+const blogArticlesByHandleQuery = (startCursor, endCursor, tag) => {
+  console.log("typeof tag", typeof tag);
+  const cursorInput = () => {
+    if (!startCursor && endCursor) return `first: 9, after: "${endCursor}"`
+    if (startCursor && !endCursor) return `last: 9, before: "${startCursor}"`
+    return "first: 9"
+  }
+
+  const articlesInput = () => {
+    if (tag && tag!="all") return `${cursorInput()}, query:"tag:${tag}"`
+    return cursorInput()
+  }
+
   return `
     {
-      blog(handle: "${handle}") {
-        id
-        articles(first: 5) {
-          edges {
-            node {
+      articles(${articlesInput()}) {
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+        edges {
+          node {
+            id
+            contentHtml
+            image {
               id
-              contentHtml
-              image {
-                id
-                url
-              }
-              title
-              authorV2 {
-                name
-              }
-              publishedAt,
-              handle
+              url
             }
+            title
+            authorV2 {
+              name
+            }
+            publishedAt,
+            handle
+            excerpt
           }
         }
       }
-  }
+    }
   `
 }
 
