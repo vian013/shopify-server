@@ -19,6 +19,8 @@
   "license": "ISC",
   "description": "",
   "nodemonConfig": {
-    "ignore": ["test.js"]
+    "ignore": [
+      "test.js"
+    ]
   }
 }

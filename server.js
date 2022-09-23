@@ -1,13 +1,13 @@
 const express = require("express")
-const fetch = require("node-fetch")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQ, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery } = require("./query")
+const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQ, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery, getAllArticlesQuery, getArticleByHandleQuery } = require("./query")
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
 let allProducts = []
-const app = express()
+let allArticles = []
 
+const app = express()
 app.use(express.json())
 app.use(cors({
     origin: true,
@@ -17,18 +17,15 @@ app.use(cookieParser())
 
 app.get("/products", async (req, res) => {
     try {
-        const products = await getProducts()
+        const products = await getAllProducts()
         res.status(200).json(products.reverse())
     } catch (error) {
         console.log(error)        
     }
 })
 
-const getProducts = async () => {
-    const data = await fetchAdminApi(productsQuery)
-    if (!data.data) throw new Error("No data")
-    const products = data.data.products.edges.map(edge => {
-        const product = edge.node
+const getAllProducts = () => {
+    const products = allProducts.map(product => {
         const featuredImage = product.featuredImage.url
         const variants = product.variants.edges.map(variant => variant.node)
         return {
@@ -239,23 +236,49 @@ app.get("/cart-items", async(req, res) => {
 
 app.get("/search", async(req, res) => {
     try {
-        const {term, type} = req.query
-        const products = await getProducts()
-        const results = products.filter(product => product.title.toLowerCase().includes(term))
-        const _results = results.map(result => {
+        const {term} = req.query
+        const _products = getAllProducts().filter(product => product.title.toLowerCase().includes(term))
+        const products = _products.map(product => {
             const replaceReg = new RegExp(term, "gi")
             const replaceHtml = `<strong class="hightlight">${term}</strong>`
-            const newTitle = result.title.replace(replaceReg, replaceHtml)
+            const newTitle = product.title.replace(replaceReg, replaceHtml)
             const titleHtml = `<span class="title">${newTitle}</span>`
-            const link = `/products/${result.handle}`
+            const link = `/products/${product.handle}`
+            const imgUrl = product.featuredImage
+            const price = product.variants[0].price
             
             return {
-                ...result,
+                ...product,
                 titleHtml,
-                link
+                link,
+                imgUrl,
+                price
             }
         })
-        res.status(200).json(_results.slice(0, 10))
+
+        const _articles = allArticles.filter(article => article.title.toLowerCase().includes(term))
+        const articles = _articles.map(article => {
+            const replaceReg = new RegExp(term, "gi")
+            const replaceHtml = `<strong class="hightlight">${term}</strong>`
+            const newTitle = article.title.replace(replaceReg, replaceHtml)
+            const titleHtml = `<span class="title">${newTitle}</span>`
+            const link = `/blogs/${article.handle}`
+            const imgUrl = article.image.url
+            
+            return {
+                ...article,
+                titleHtml,
+                link,
+                imgUrl
+            }
+        })
+
+        const result = {
+            products: products.slice(0, 10),
+            articles: articles.slice(0, 10),
+        }
+
+        res.status(200).json(result)
     } catch (error) {
         console.log(error);        
     }
@@ -356,7 +379,6 @@ app.get("/product-variants", async(req, res) => {
 app.get("/collections", async(req, res) =>{
     try {
         const result = await fetchAdminApi(getCollectionsQuery)
-        console.log(result.data);
         const collections = result.data.collections.edges
         .map(edge => edge.node)
         .map(collection => {
@@ -387,12 +409,11 @@ app.get("/collections/:handle", async(req, res) => {
     }
 })
 
-app.get("/blogs/:handle", async(req, res) => {
+
+app.get("/blogs/news/tagged/:handle", async(req, res) => {
     const {handle} = req.params 
     const {startCursor, endCursor, tag} = req.query
-    console.log("tag:", tag);
     const query = blogArticlesByHandleQuery(startCursor, endCursor, tag)
-    console.log(query);
     
     if (!handle) return
     try {
@@ -416,6 +437,34 @@ app.get("/blogs/:handle", async(req, res) => {
     } catch (error) {
         
     }
+})
+
+app.get("/blogs/:handle", async(req, res) => {
+    const {handle} = req.params 
+    if(!handle) return
+
+    try {
+        const result = await fetchStoreFrontApi(getArticleByHandleQuery(handle))
+        const _article = result.data.blog.articleByHandle
+        const {title, authorV2, image, contentHtml, excerpt} = _article
+        const author = authorV2.name
+        const imgUrl = image.url
+        const publishedAt = new Date(_article.publishedAt).toDateString().substring(3)
+        const article = {
+            imgUrl,
+            publishedAt,
+            title,
+            handle: _article.handle,
+            contentHtml,
+            author,
+            excerpt
+        }
+
+        res.status(200).json(article)
+    } catch (error) {
+        console.log(error)        
+    }
+    
 })
 
 app.post("/login", async (req, res) => {
@@ -481,7 +530,29 @@ const fetchAllProducts = async () => {
         if (hasNext) await delay(4000)
     }
 
-    return products
+    console.log("fetch products done!");
+
+    allProducts = products
+}
+
+const fetchAllArticles = async () => {
+    let hasNext = true
+    let articles = []
+    let endCursor = ""
+    console.log("fetching all articles...")
+
+    while (hasNext) {
+        const data = await fetchStoreFrontApi(getAllArticlesQuery(endCursor))
+        let _articles = []
+        if (data.data) _articles = data.data.articles.edges.map(edge => edge.node)
+        articles =[...articles, ..._articles]
+        hasNext = data.data.articles.pageInfo.hasNextPage
+        endCursor = data.data.articles.pageInfo.endCursor
+        if (hasNext) await delay(4000)
+    }
+
+    console.log("fetch articles done!");
+    allArticles = articles
 }
 
 const delay = (time) => {
@@ -490,6 +561,6 @@ const delay = (time) => {
 
 const server = app.listen(4000, async() => {
     console.log("listening...");
-    allProducts = await fetchAllProducts()
-    console.log("fetch done!");
+    fetchAllProducts()
+    fetchAllArticles()
 })

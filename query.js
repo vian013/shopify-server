@@ -1,6 +1,6 @@
 const productsQuery = `
 {
-	products(first:50) {
+	products(first:20) {
 	  edges {
 	    node {
 	        id
@@ -436,7 +436,6 @@ const getCollectionProductsQuery = (handle) => {
 }
 
 const blogArticlesByHandleQuery = (startCursor, endCursor, tag) => {
-  console.log("typeof tag", typeof tag);
   const cursorInput = () => {
     if (!startCursor && endCursor) return `first: 9, after: "${endCursor}"`
     if (startCursor && !endCursor) return `last: 9, before: "${startCursor}"`
@@ -479,6 +478,63 @@ const blogArticlesByHandleQuery = (startCursor, endCursor, tag) => {
   `
 }
 
+const getAllArticlesQuery = (endCursor) => {
+  return `
+    {
+      articles(first: 18, reverse: true, ${endCursor&&`, after: "${endCursor}"`}) {
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+        edges {
+          node {
+            id
+            contentHtml
+            image {
+              id
+              url
+            }
+            title
+            authorV2 {
+              name
+            }
+            publishedAt,
+            handle
+            excerpt
+          }
+        }
+      }
+    }
+  `
+}
+
+const getArticleByHandleQuery = (handle) => {
+  return `
+    {
+      blog(handle: "news") {
+        id
+        articleByHandle(handle: "${handle}") {
+          id
+          contentHtml
+          image {
+            id
+            url
+          }
+          title
+          authorV2 {
+            name
+          }
+          publishedAt,
+          handle
+          excerpt
+        }
+      }
+    }
+  `
+}
+
 module.exports = {
     productsQuery,
     productByHandleQuery,
@@ -493,5 +549,7 @@ module.exports = {
     getAllProductsQuery,
     getCollectionProductsQuery,
     blogArticlesByHandleQuery,
-    getCollectionsQuery
+    getCollectionsQuery,
+    getAllArticlesQuery,
+    getArticleByHandleQuery
 }
