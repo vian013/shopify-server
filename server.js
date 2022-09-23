@@ -1,7 +1,8 @@
 const express = require("express")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productsQuery, productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQ, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery, getAllArticlesQuery, getArticleByHandleQuery } = require("./query")
+const { productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery, getAllArticlesQuery, getArticleByHandleQuery } = require("./query")
+
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
 let allProducts = []
