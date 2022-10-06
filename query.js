@@ -254,11 +254,16 @@ const cartQuery = (cartId) => {
             amount
           }
         }
-        lines(first: 10) {
+        lines(first: 50) {
           edges {
             node {
               id
               quantity
+              cost {
+                totalAmount {
+                  amount
+                }
+              }
               merchandise {
                 ... on ProductVariant {
                   id

@@ -208,6 +208,7 @@ const getCart = async (cartId) => {
             variantId: line.merchandise.id,
             lineId: line.id,
             quantity: line.quantity,
+            cost: line.cost.totalAmount.amount,
             price,
             options
         }
@@ -485,6 +486,7 @@ app.post("/login", async (req, res) => {
         res.cookie("sid", "123")
         const data = await fetchAdminApi(customerQuery(email))
         const customer = data.data.customers.edges[0].node
+        console.log(customer);
         res.status(200).json(customer)
     }
     if (!customerAccessToken && customerUserErrors.length > 0) {
