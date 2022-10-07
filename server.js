@@ -1,7 +1,7 @@
 const express = require("express")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery, getAllArticlesQuery, getArticleByHandleQuery } = require("./query")
+const { productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery, getAllArticlesQuery, getArticleByHandleQuery, getCustomerByIdQuery } = require("./query")
 
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
@@ -482,11 +482,10 @@ app.post("/login", async (req, res) => {
     const data = await fetchStoreFrontApi(query, variables)
     const {customerUserErrors, customerAccessToken} = data.data.customerAccessTokenCreate
     if (customerAccessToken && customerUserErrors.length === 0) {
-        res.setHeader('Access-Control-Allow-Credentials', true);
-        res.cookie("sid", "123")
         const data = await fetchAdminApi(customerQuery(email))
         const customer = data.data.customers.edges[0].node
-        console.log(customer);
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.cookie("sid", customer.id)
         res.status(200).json(customer)
     }
     if (!customerAccessToken && customerUserErrors.length > 0) {
@@ -496,19 +495,17 @@ app.post("/login", async (req, res) => {
     } 
 })
 
-
-const users = {
-    "123": {
-        firstName: "fsfdf",
-        lastName: "asfd",
-        email: "def@gmail.com"
-    }
-}
-
-app.get("/user", (req, res) => {
+app.get("/user", async(req, res) => {
+    const {id} = req.query 
     const {sid} = req.cookies
-    if (sid) {
-        res.status(200).json(users[sid]) 
+    const userId = id || sid
+    if (!userId) return
+    try {
+        const result = await fetchAdminApi(getCustomerByIdQuery(userId))
+        const user = result.data.customer
+        res.status(200).json(user)
+    } catch (error) {
+        
     }
 })
 

@@ -120,6 +120,21 @@ const customerQuery = (email) => {
     }
 `
 } 
+const getCustomerByIdQuery = (id) => {
+    return `
+    {
+      customer(id: "${id}") {
+        id
+        email
+        lastName
+        firstName
+        displayName
+        phone
+        numberOfOrders
+      }
+    }
+`
+} 
 
 const createCartQuery = (variantId, quantity) => {
     return `
@@ -556,5 +571,6 @@ module.exports = {
     blogArticlesByHandleQuery,
     getCollectionsQuery,
     getAllArticlesQuery,
-    getArticleByHandleQuery
+    getArticleByHandleQuery,
+    getCustomerByIdQuery
 }
