@@ -110,16 +110,40 @@ const customerQuery = (email) => {
         customers(first: 1, query: "email:${email}") {
             edges {
                 node {
-                    id
-                    email
-                    lastName
-                    firstName
+                  id
+                  email
+                  lastName
+                  firstName
+                  displayName
+                  phone
+                  numberOfOrders
                 }
             }
         } 
     }
 `
 } 
+
+const createAccountQuery = `
+  mutation customerCreate($input: CustomerCreateInput!) {
+      customerCreate(input: $input) {
+        customerUserErrors {
+          code
+          field
+          message
+        }
+        customer {
+          id
+          email
+          lastName
+          firstName
+          displayName
+          phone
+        }
+      }
+  }
+`
+
 const getCustomerByIdQuery = (id) => {
     return `
     {
@@ -136,6 +160,88 @@ const getCustomerByIdQuery = (id) => {
 `
 } 
 
+const cartData = `
+  id
+  createdAt
+  updatedAt
+  totalQuantity
+  cost {
+    subtotalAmount {
+      amount
+    }
+    totalAmount {
+      amount
+    }
+    totalTaxAmount {
+      amount
+    }
+  }
+  lines(first: 50) {
+    edges {
+      node {
+        id
+        quantity
+        cost {
+          totalAmount {
+            amount
+          }
+        }
+        merchandise {
+          ... on ProductVariant {
+            id
+            title
+            priceV2 {
+              amount
+            }
+            product {
+              productId: id 
+              title
+              featuredImage {
+                id
+                url
+              }
+            }
+          }
+        }
+        attributes {
+          key
+          value
+        }
+      }
+    }
+  }
+  attributes {
+    key
+    value
+  }
+  cost {
+    totalAmount {
+      amount
+      currencyCode
+    }
+    subtotalAmount {
+      amount
+      currencyCode
+    }
+    totalTaxAmount {
+      amount
+      currencyCode
+    }
+    totalDutyAmount {
+      amount
+      currencyCode
+    }
+  }
+  buyerIdentity {
+    email
+    phone
+    customer {
+      id
+    }
+    countryCode
+  }
+`
+
 const createCartQuery = (variantId, quantity) => {
     return `
     mutation {
@@ -151,21 +257,7 @@ const createCartQuery = (variantId, quantity) => {
           }
         ) {
           cart {
-            id
-            createdAt
-            updatedAt
-            lines(first: 10) {
-              edges {
-                node {
-                  id
-                  merchandise {
-                    ... on ProductVariant {
-                      id
-                    }
-                  }
-                }
-              }
-            }
+            ${cartData}
           }
         }
       }
@@ -177,21 +269,7 @@ const addToCartQuery = `
     mutation cartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
       cartLinesAdd(cartId: $cartId, lines: $lines) {
         cart {
-          id
-          totalQuantity
-          lines(first: 20) {
-            edges {
-              node {
-                id
-                quantity
-                merchandise {
-                  ... on ProductVariant {
-                    id
-                  }
-                }
-              }
-            }
-          }
+          ${cartData}
         }
         userErrors {
           field
@@ -204,21 +282,7 @@ const updateCartQuery = `
     mutation cartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
       cartLinesUpdate(cartId: $cartId, lines: $lines) {
         cart {
-          id
-          totalQuantity
-          lines(first: 20) {
-            edges {
-              node {
-                id
-                quantity
-                merchandise {
-                  ... on ProductVariant {
-                    id
-                  }
-                }
-              }
-            }
-          }
+          ${cartData}
         }
         userErrors {
           field
@@ -231,14 +295,7 @@ const deleteCartItemQuery = `
   mutation cartLinesRemove($cartId: ID!, $lineIds: [ID!]!) {
     cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
       cart {
-        id
-        lines(first: 20) {
-          edges {
-            node {
-              id
-            }
-          }
-        }
+        ${cartData}
       }
       userErrors {
         field
@@ -248,91 +305,14 @@ const deleteCartItemQuery = `
   }
 `
 
+
 const cartQuery = (cartId) => {
   return `
     query {
       cart(
         id: "${cartId}"
       ) {
-        id
-        createdAt
-        updatedAt
-        totalQuantity
-        cost {
-          subtotalAmount {
-            amount
-          }
-          totalAmount {
-            amount
-          }
-          totalTaxAmount {
-            amount
-          }
-        }
-        lines(first: 50) {
-          edges {
-            node {
-              id
-              quantity
-              cost {
-                totalAmount {
-                  amount
-                }
-              }
-              merchandise {
-                ... on ProductVariant {
-                  id
-                  title
-                  priceV2 {
-                    amount
-                  }
-                  product {
-                    productId: id 
-                    title
-                    featuredImage {
-                      id
-                      url
-                    }
-                  }
-                }
-              }
-              attributes {
-                key
-                value
-              }
-            }
-          }
-        }
-        attributes {
-          key
-          value
-        }
-        cost {
-          totalAmount {
-            amount
-            currencyCode
-          }
-          subtotalAmount {
-            amount
-            currencyCode
-          }
-          totalTaxAmount {
-            amount
-            currencyCode
-          }
-          totalDutyAmount {
-            amount
-            currencyCode
-          }
-        }
-        buyerIdentity {
-          email
-          phone
-          customer {
-            id
-          }
-          countryCode
-        }
+      ${cartData}
       }
     }
   
@@ -572,5 +552,6 @@ module.exports = {
     getCollectionsQuery,
     getAllArticlesQuery,
     getArticleByHandleQuery,
-    getCustomerByIdQuery
+    getCustomerByIdQuery,
+    createAccountQuery
 }

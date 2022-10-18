@@ -1,7 +1,7 @@
 const express = require("express")
 const cors = require("cors")
 const cookieParser = require("cookie-parser")
-const { productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery, getAllArticlesQuery, getArticleByHandleQuery, getCustomerByIdQuery } = require("./query")
+const { productByHandleQuery, loginQuery, customerQuery, productVariantsByHandleQuery, createCartQuery, cartQuery, updateCartQuery, addToCartQuery, deleteCartItemQuery, getAllProductsQuery, getCollectionProductsQuery, blogArticlesByHandleQuery, getCollectionsQuery, getAllArticlesQuery, getArticleByHandleQuery, getCustomerByIdQuery, createAccountQuery } = require("./query")
 
 const { compareObjects, fetchStoreFrontApi, fetchAdminApi } = require("./utils")
 
@@ -76,7 +76,7 @@ app.post("/products/:handle", async (req, res) => {
                 id: variant.id,
                 options: o2
             }
-        } )
+        })
         
         const result = _variants.find(variant => compareObjects(variant.options, productOption))
         res.status(200).json({variantId: result.id})
@@ -187,6 +187,25 @@ const getCart = async (cartId) => {
     const query = cartQuery(cartId)
     const data = await fetchStoreFrontApi(query)
     const cart = data.data.cart
+    return processCartItems(cart) 
+}
+
+
+app.get("/cart-items", async(req, res) => {
+    const {cartId} = req.query
+    try {
+        if (cartId) {
+            const cartItems = await getCart(cartId)
+            res.status(200).json(cartItems)
+        } else {
+            res.status(200).json([])
+        }
+    } catch (error) {
+        console.log(error);        
+    }
+})
+
+const processCartItems = (cart) => {
     const totalQuantity = cart.totalQuantity
     let subTotal = 0
     let totalTax = 0
@@ -219,22 +238,8 @@ const getCart = async (cartId) => {
         subTotal,
         total,
         totalTax
-    } 
-}
-
-app.get("/cart-items", async(req, res) => {
-    const {cartId} = req.query
-    try {
-        if (cartId) {
-            const cartItems = await getCart(cartId)
-            res.status(200).json(cartItems)
-        } else {
-            res.status(200).json([])
-        }
-    } catch (error) {
-        console.log(error);        
     }
-})
+}
 
 app.get("/search", async(req, res) => {
     try {
@@ -287,38 +292,46 @@ app.get("/search", async(req, res) => {
 })
 
 
-const filterProducts = (size, color, minPrice, maxPrice, all) => {
-    let _products = []
+const getColorsAndSizes = (products) => {
     const colors = {}
     const colorProductIds = {}
     const sizes = {}
     const sizeProductIds = {}
 
-    const getColorsAndSizes = (selectedOptions, product) => {
-        const sizeValue = selectedOptions[0].value 
-        if (!(sizeValue in sizes)) {
-            sizeProductIds[sizeValue] = new Set()
-            sizes[sizeValue] = 0
-        } 
-        if (!sizeProductIds[sizeValue].has(product.id)) {
-            sizes[sizeValue]++
-        }
-        sizeProductIds[sizeValue].add(product.id)
-        
-        const colorValue = selectedOptions[1].value 
+    products.map(({id, variants}) => {
+        variants.forEach(({selectedOptions}) => {
+            if (selectedOptions.length === 2) {
+                const sizeValue = selectedOptions[0].value 
+                if (!(sizeValue in sizes)) {
+                    sizeProductIds[sizeValue] = new Set()
+                    sizes[sizeValue] = 0
+                } 
+                if (!sizeProductIds[sizeValue].has(id)) {
+                    sizes[sizeValue]++
+                }
+                sizeProductIds[sizeValue].add(id)
+                
+                const colorValue = selectedOptions[1].value 
+            
+                if (!(colorValue in colors)) {
+                    colorProductIds[colorValue] = new Set()
+                    colors[colorValue] = 0
+                } 
+                if (!colorProductIds[colorValue].has(id)) {
+                    colors[colorValue]++
+                }
+                colorProductIds[colorValue].add(id)
+            }
+        })
+    })
 
-        if (!(colorValue in colors)) {
-            colorProductIds[colorValue] = new Set()
-            colors[colorValue] = 0
-        } 
-        if (!colorProductIds[colorValue].has(product.id)) {
-            colors[colorValue]++
-        }
-        colorProductIds[colorValue].add(product.id)
-    }
+    return {colors, sizes}
+}
 
-    if (all) _products = allProducts
-    else if (!size && !color){
+const filterProducts = (size, color, minPrice, maxPrice) => {
+    let _products = []
+
+    if (!size && !color){
         _products = allProducts.filter(product => {
             const variants = product.variants.edges.map(variant => variant.node)
             return (variants.some(variant => variant.price >= minPrice) && variants.some(variant => variant.price <= maxPrice))
@@ -346,20 +359,16 @@ const filterProducts = (size, color, minPrice, maxPrice, all) => {
         })
     }
 
-    const products = processProducts(_products, getColorsAndSizes)
+    const products = processProducts(_products)
+    const {sizes, colors} = getColorsAndSizes(products)
     
     return {products, colors, sizes}
 }
 
-const processProducts = (products, getColorsAndSizes) => {
+const processProducts = (products) => {
     return products.map(product => {
         const featuredImage = product.featuredImage.url
         const variants = product.variants.edges.map(variant => variant.node)
-        if (getColorsAndSizes) {
-            variants.forEach(({selectedOptions}) => {
-                if (selectedOptions.length === 2) getColorsAndSizes(selectedOptions, product)
-            })
-        }
         const images = product.images.edges.map(image => image.node)
         return {
             ...product,
@@ -372,10 +381,15 @@ const processProducts = (products, getColorsAndSizes) => {
 }
 
 app.get("/product-variants", async(req, res) => {
-    const {size, color, minPrice, maxPrice, all} = req.query
-    const {products, colors, sizes} = filterProducts(size, color, Number(minPrice), Number(maxPrice), all)
+    const {size, color, minPrice, maxPrice} = req.query
+    const {products, colors, sizes} = filterProducts(size, color, Number(minPrice), Number(maxPrice))
     res.status(200).json({products, colors, sizes})
+})
 
+app.get("/product-variants/all", async(req, res) => {
+    const products = processProducts(allProducts) 
+    const {sizes, colors} = getColorsAndSizes(products)
+    res.status(200).json({products, colors, sizes})
 })
 
 app.get("/collections", async(req, res) =>{
@@ -512,6 +526,35 @@ app.get("/user", async(req, res) => {
 app.get("/logout", (req, res) => {
     res.clearCookie("sid", {domain: "localhost", path: "/"})
     res.send()
+})
+
+app.post("/create-account", async(req, res) => {
+    const {email, password, fName, lName} = req.body
+    const variables = { 
+        input: {
+            email,
+            password,
+            firstName: fName,
+            lastName: lName
+        }
+    }
+    try {
+        const result = await fetchStoreFrontApi(createAccountQuery, variables)
+        const {data, errors} = result
+        if(data.customerCreate) {
+            const customer = data.customerCreate.customer
+            const customerErrors = data.customerCreate.customerUserErrors
+
+            if(customer) res.status(201).json(customer)
+            if (customerErrors.length > 0) res.status(400).json({message: customerErrors[0].message})
+        }
+
+        if (errors) res.status(400).json({message: errors[0].message})
+        
+    } catch (error) {
+        res.status(400).json({message: "Cannot create account"})
+
+    }
 })
 
 const fetchAllProducts = async () => {
