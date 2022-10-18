@@ -403,7 +403,7 @@ app.get("/collections/:handle", async(req, res) => {
     const {handle} = req.params
     try {
         const result = await fetchAdminApi(getCollectionProductsQuery(handle))
-        const _products = result.data.collectionByHandle.products.edges.map(edge => edge.node)
+        const _products = result.data?.collectionByHandle.products.edges.map(edge => edge.node)
         const products = processProducts(_products)
         res.status(200).json(products)
     } catch (error) {
@@ -470,6 +470,7 @@ app.get("/blogs/:handle", async(req, res) => {
 })
 
 app.post("/login", async (req, res) => {
+    console.log("fields:", req.body);
     const {email, password} = req.body
     const query = loginQuery
     const variables = {
@@ -484,6 +485,7 @@ app.post("/login", async (req, res) => {
     if (customerAccessToken && customerUserErrors.length === 0) {
         const data = await fetchAdminApi(customerQuery(email))
         const customer = data.data.customers.edges[0].node
+        console.log("customer", customer);
         res.setHeader('Access-Control-Allow-Credentials', true);
         res.cookie("sid", customer.id)
         res.status(200).json(customer)

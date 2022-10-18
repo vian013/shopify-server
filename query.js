@@ -110,10 +110,13 @@ const customerQuery = (email) => {
         customers(first: 1, query: "email:${email}") {
             edges {
                 node {
-                    id
-                    email
-                    lastName
-                    firstName
+                  id
+                  email
+                  lastName
+                  firstName
+                  displayName
+                  phone
+                  numberOfOrders
                 }
             }
         } 
