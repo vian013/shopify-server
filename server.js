@@ -21,7 +21,7 @@ app.get("/products", async (req, res) => {
         const products = await getAllProducts()
         res.status(200).json(products.reverse())
     } catch (error) {
-        console.log(error)        
+        console.log(error)
     }
 })
 
@@ -48,7 +48,7 @@ app.get("/products/:handle", async (req, res) => {
         const variants = product.variants.edges.map(variant => variant.node)
         const featuredImage = product.featuredImage.url
         const images = product.images.edges.map(image => image.node)
-    
+
         res.status(200).json({
             ...product,
             variants,
@@ -56,7 +56,7 @@ app.get("/products/:handle", async (req, res) => {
             images
         })
     } catch (error) {
-        console.log(error)        
+        console.log(error)
     }
 })
 
@@ -77,56 +77,56 @@ app.post("/products/:handle", async (req, res) => {
                 options: o2
             }
         })
-        
+
         const result = _variants.find(variant => compareObjects(variant.options, productOption))
-        res.status(200).json({variantId: result.id})
-        
+        res.status(200).json({ variantId: result.id })
+
     } catch (error) {
         console.log(error)
     }
 })
 
 app.post("/cart-item", async (req, res) => {
-    const {variantId, quantity, cartId} = req.body
+    const { variantId, quantity, cartId } = req.body
     let outOfStockError = null
 
     try {
         if (!cartId) {
             const cart = await createCart(variantId, quantity)
-            const {id} = cart
+            const { id } = cart
             res.setHeader('Access-Control-Allow-Credentials', true);
             res.cookie("cartId", String(id))
-            res.status(200).json({id, items: []})
+            res.status(200).json({ id, items: [] })
         } else {
-            const {items: cartItems}  = await getCart(cartId)
+            const { items: cartItems } = await getCart(cartId)
             const existed = cartItems.find(item => item.variantId === variantId)
             if (!existed) {
                 outOfStockError = await addToCart(cartId, variantId, quantity)
-            } 
+            }
             else {
-                const {quantity: existedQuantity, lineId} = existed
+                const { quantity: existedQuantity, lineId } = existed
                 const newQuantity = quantity + existedQuantity
                 outOfStockError = await updateCart(cartId, lineId, variantId, newQuantity)
             }
-            res.status(200).json({id: cartId, items: [], outOfStockError})
+            res.status(200).json({ id: cartId, items: [], outOfStockError })
         }
     } catch (error) {
-        console.log(error);        
+        console.log(error);
     }
 })
 
 app.delete("/cart-item", async (req, res) => {
     try {
-        const {cartId, lineIds} = req.body
+        const { cartId, lineIds } = req.body
         const variables = {
             "cartId": cartId,
             "lineIds": lineIds
-          }
+        }
         const data = await fetchStoreFrontApi(deleteCartItemQuery, variables)
-        const {cart: {id}} = data.data.cartLinesRemove
-        res.status(200).json({id, items: []})
+        const { cart: { id } } = data.data.cartLinesRemove
+        res.status(200).json({ id, items: [] })
     } catch (error) {
-        console.log(error)        
+        console.log(error)
     }
 
 })
@@ -142,8 +142,8 @@ const addToCart = async (cartId, variantId, quantity) => {
     const variables = {
         "cartId": cartId,
         "lines": {
-          "merchandiseId": variantId,
-          "quantity": quantity
+            "merchandiseId": variantId,
+            "quantity": quantity
         }
     }
 
@@ -164,9 +164,9 @@ const updateCart = async (cartId, lineId, variantId, newQuantity) => {
     const variables = {
         "cartId": cartId,
         "lines": {
-          "id": lineId,
-          "merchandiseId": variantId,
-          "quantity": newQuantity
+            "id": lineId,
+            "merchandiseId": variantId,
+            "quantity": newQuantity
         }
     }
 
@@ -187,25 +187,10 @@ const getCart = async (cartId) => {
     const query = cartQuery(cartId)
     const data = await fetchStoreFrontApi(query)
     const cart = data.data.cart
-    return processCartItems(cart) 
+    return processCart(cart)
 }
 
-
-app.get("/cart-items", async(req, res) => {
-    const {cartId} = req.query
-    try {
-        if (cartId) {
-            const cartItems = await getCart(cartId)
-            res.status(200).json(cartItems)
-        } else {
-            res.status(200).json([])
-        }
-    } catch (error) {
-        console.log(error);        
-    }
-})
-
-const processCartItems = (cart) => {
+const processCart = (cart) => {
     const totalQuantity = cart.totalQuantity
     let subTotal = 0
     let totalTax = 0
@@ -215,6 +200,19 @@ const processCartItems = (cart) => {
         totalTax = cart.cost.totalTaxAmount.amount
         total = cart.cost.totalAmount.amount
     }
+    const items = processCartItems(cart)
+    const cartData = {
+        id: cart.id,
+        items,
+        totalQuantity,
+        total,
+        subTotal,
+        totalTax
+    }
+    return cartData
+}
+
+const processCartItems = (cart) => {
     const lines = cart.lines.edges.map(edge => edge.node)
     const lineItems = lines.map(line => {
         const product = line.merchandise.product
@@ -232,18 +230,56 @@ const processCartItems = (cart) => {
             options
         }
     })
-    return {
-        totalQuantity,
-        items: lineItems,  
-        subTotal,
-        total,
-        totalTax
-    }
+    return lineItems
 }
 
-app.get("/search", async(req, res) => {
+app.get("/cart-items", async (req, res) => {
+    const { cartId } = req.query
     try {
-        const {term} = req.query
+        if (cartId) {
+            const cartItems = await getCart(cartId)
+            res.status(200).json(cartItems)
+        } else {
+            res.status(200).json([])
+        }
+    } catch (error) {
+        console.log(error);
+    }
+})
+
+const getVariantId = async(handle, options) => {
+    const query = productVariantsByHandleQuery(handle)
+    const data = await fetchAdminApi(query)
+    const product = data.data.productByHandle
+    const variants = product.variants.edges.map(variant => variant.node)
+    const _variants = variants.map(variant => {
+        const option = variant.selectedOptions
+        const o2 = {}
+        option.forEach(pair => o2[pair.name] = pair.value)
+        return {
+            id: variant.id,
+            options: o2
+        }
+    })
+
+    const variant = _variants.find(variant => compareObjects(variant.options, options))
+
+    return variant.id
+}
+
+app.post("/cart-items", async (req, res) => {
+    const { productHandle: handle, options, quantity } = req.body
+    const variantId = await getVariantId(handle, options)
+    const cart = await createCart(variantId, quantity)
+    const {id} = cart
+    res.setHeader('Access-Control-Allow-Credentials', true);
+    res.cookie("cartId", String(id))
+    res.status(200).json(processCart(cart))
+})
+
+app.get("/search", async (req, res) => {
+    try {
+        const { term } = req.query
         const _products = getAllProducts().filter(product => product.title.toLowerCase().includes(term))
         const products = _products.map(product => {
             const replaceReg = new RegExp(term, "gi")
@@ -253,7 +289,7 @@ app.get("/search", async(req, res) => {
             const link = `/products/${product.handle}`
             const imgUrl = product.featuredImage
             const price = product.variants[0].price
-            
+
             return {
                 ...product,
                 titleHtml,
@@ -271,7 +307,7 @@ app.get("/search", async(req, res) => {
             const titleHtml = `<span class="title">${newTitle}</span>`
             const link = `/blogs/${article.handle}`
             const imgUrl = article.image.url
-            
+
             return {
                 ...article,
                 titleHtml,
@@ -287,7 +323,7 @@ app.get("/search", async(req, res) => {
 
         res.status(200).json(result)
     } catch (error) {
-        console.log(error);        
+        console.log(error);
     }
 })
 
@@ -298,25 +334,25 @@ const getColorsAndSizes = (products) => {
     const sizes = {}
     const sizeProductIds = {}
 
-    products.map(({id, variants}) => {
-        variants.forEach(({selectedOptions}) => {
+    products.map(({ id, variants }) => {
+        variants.forEach(({ selectedOptions }) => {
             if (selectedOptions.length === 2) {
-                const sizeValue = selectedOptions[0].value 
+                const sizeValue = selectedOptions[0].value
                 if (!(sizeValue in sizes)) {
                     sizeProductIds[sizeValue] = new Set()
                     sizes[sizeValue] = 0
-                } 
+                }
                 if (!sizeProductIds[sizeValue].has(id)) {
                     sizes[sizeValue]++
                 }
                 sizeProductIds[sizeValue].add(id)
-                
-                const colorValue = selectedOptions[1].value 
-            
+
+                const colorValue = selectedOptions[1].value
+
                 if (!(colorValue in colors)) {
                     colorProductIds[colorValue] = new Set()
                     colors[colorValue] = 0
-                } 
+                }
                 if (!colorProductIds[colorValue].has(id)) {
                     colors[colorValue]++
                 }
@@ -325,13 +361,13 @@ const getColorsAndSizes = (products) => {
         })
     })
 
-    return {colors, sizes}
+    return { colors, sizes }
 }
 
 const filterProducts = (size, color, minPrice, maxPrice) => {
     let _products = []
 
-    if (!size && !color){
+    if (!size && !color) {
         _products = allProducts.filter(product => {
             const variants = product.variants.edges.map(variant => variant.node)
             return (variants.some(variant => variant.price >= minPrice) && variants.some(variant => variant.price <= maxPrice))
@@ -339,30 +375,30 @@ const filterProducts = (size, color, minPrice, maxPrice) => {
     } else if (size && !color) {
         _products = allProducts.filter(product => {
             const variants = product.variants.edges.map(variant => variant.node)
-            return (variants.some(({selectedOptions, price}) => {
+            return (variants.some(({ selectedOptions, price }) => {
                 return selectedOptions[0].value === size && price >= minPrice && price <= maxPrice
             }))
         })
     } else if (!size && color) {
         _products = allProducts.filter(product => {
             const variants = product.variants.edges.map(variant => variant.node)
-            return (variants.some(({selectedOptions, price}) => {
+            return (variants.some(({ selectedOptions, price }) => {
                 return selectedOptions[1].value === color && price >= minPrice && price <= maxPrice
             }))
         })
     } else if (size && color) {
         _products = allProducts.filter(product => {
             const variants = product.variants.edges.map(variant => variant.node)
-            return (variants.some(({selectedOptions, price}) => {
+            return (variants.some(({ selectedOptions, price }) => {
                 return (selectedOptions[0].value === size && selectedOptions[1].value === color && price >= minPrice && price <= maxPrice)
             }))
         })
     }
 
     const products = processProducts(_products)
-    const {sizes, colors} = getColorsAndSizes(products)
-    
-    return {products, colors, sizes}
+    const { sizes, colors } = getColorsAndSizes(products)
+
+    return { products, colors, sizes }
 }
 
 const processProducts = (products) => {
@@ -380,65 +416,65 @@ const processProducts = (products) => {
     })
 }
 
-app.get("/product-variants", async(req, res) => {
-    const {size, color, minPrice, maxPrice} = req.query
-    const {products, colors, sizes} = filterProducts(size, color, Number(minPrice), Number(maxPrice))
-    res.status(200).json({products, colors, sizes})
+app.get("/product-variants", async (req, res) => {
+    const { size, color, minPrice, maxPrice } = req.query
+    const { products, colors, sizes } = filterProducts(size, color, Number(minPrice), Number(maxPrice))
+    res.status(200).json({ products, colors, sizes })
 })
 
-app.get("/product-variants/all", async(req, res) => {
-    const products = processProducts(allProducts) 
-    const {sizes, colors} = getColorsAndSizes(products)
-    res.status(200).json({products, colors, sizes})
+app.get("/product-variants/all", async (req, res) => {
+    const products = processProducts(allProducts)
+    const { sizes, colors } = getColorsAndSizes(products)
+    res.status(200).json({ products, colors, sizes })
 })
 
-app.get("/collections", async(req, res) =>{
+app.get("/collections", async (req, res) => {
     try {
         const result = await fetchAdminApi(getCollectionsQuery)
         const collections = result.data.collections.edges
-        .map(edge => edge.node)
-        .map(collection => {
-            const {title, handle, image} = collection
-            const imgUrl = image.url
-            return {
-                title,
-                handle,
-                imgUrl                
-            }
-        })
+            .map(edge => edge.node)
+            .map(collection => {
+                const { title, handle, image } = collection
+                const imgUrl = image.url
+                return {
+                    title,
+                    handle,
+                    imgUrl
+                }
+            })
 
-        res.status(200).json(collections)  
+        res.status(200).json(collections)
     } catch (error) {
         console.log(error)
     }
 })
 
-app.get("/collections/:handle", async(req, res) => {
-    const {handle} = req.params
+app.get("/collections/:handle", async (req, res) => {
+    const { handle } = req.params
     try {
         const result = await fetchAdminApi(getCollectionProductsQuery(handle))
         const _products = result.data.collectionByHandle.products.edges.map(edge => edge.node)
         const products = processProducts(_products)
         res.status(200).json(products)
     } catch (error) {
-        console.log(error);        
+        console.log(error);
     }
 })
 
 
-app.get("/blogs/news/tagged/:handle", async(req, res) => {
-    const {handle} = req.params 
-    const {startCursor, endCursor, tag} = req.query
+app.get("/blogs/news/tagged/:handle", async (req, res) => {
+    const { handle } = req.params
+    const { startCursor, endCursor, tag } = req.query
     const query = blogArticlesByHandleQuery(startCursor, endCursor, tag)
-    
+
     if (!handle) return
     try {
         const result = await fetchStoreFrontApi(query)
         const _articles = result.data.articles.edges.map(edge => edge.node)
         const pageInfo = result.data.articles.pageInfo
-        const {hasNextPage, hasPreviousPage, startCursor, endCursor} = pageInfo
+        const { hasNextPage, hasPreviousPage, startCursor, endCursor } = pageInfo
         const articles = _articles.map(article => {
-            const {title, handle, excerpt} = article
+            const { title, handle, excerpt } = article
             const imgUrl = article.image.url
             const publishedAt = new Date(article.publishedAt).toDateString()
             return {
@@ -449,20 +485,20 @@ app.get("/blogs/news/tagged/:handle", async(req, res) => {
                 excerpt
             }
         })
-        res.status(200).json({articles, hasNextPage, hasPreviousPage, startCursor, endCursor})
+        res.status(200).json({ articles, hasNextPage, hasPreviousPage, startCursor, endCursor })
     } catch (error) {
-        
+
     }
 })
 
-app.get("/blogs/:handle", async(req, res) => {
-    const {handle} = req.params 
-    if(!handle) return
+app.get("/blogs/:handle", async (req, res) => {
+    const { handle } = req.params
+    if (!handle) return
 
     try {
         const result = await fetchStoreFrontApi(getArticleByHandleQuery(handle))
         const _article = result.data.blog.articleByHandle
-        const {title, authorV2, image, contentHtml, excerpt} = _article
+        const { title, authorV2, image, contentHtml, excerpt } = _article
         const author = authorV2.name
         const imgUrl = image.url
         const publishedAt = new Date(_article.publishedAt).toDateString().substring(3)
@@ -478,13 +514,13 @@ app.get("/blogs/:handle", async(req, res) => {
 
         res.status(200).json(article)
     } catch (error) {
-        console.log(error)        
+        console.log(error)
     }
-    
+
 })
 
 app.post("/login", async (req, res) => {
-    const {email, password} = req.body
+    const { email, password } = req.body
     const query = loginQuery
     const variables = {
         "input": {
@@ -494,7 +530,7 @@ app.post("/login", async (req, res) => {
     }
 
     const data = await fetchStoreFrontApi(query, variables)
-    const {customerUserErrors, customerAccessToken} = data.data.customerAccessTokenCreate
+    const { customerUserErrors, customerAccessToken } = data.data.customerAccessTokenCreate
     if (customerAccessToken && customerUserErrors.length === 0) {
         const data = await fetchAdminApi(customerQuery(email))
         const customer = data.data.customers.edges[0].node
@@ -506,12 +542,12 @@ app.post("/login", async (req, res) => {
         res.status(400).json({
             error: "Invalid email or password!"
         })
-    } 
+    }
 })
 
-app.get("/user", async(req, res) => {
-    const {id} = req.query 
-    const {sid} = req.cookies
+app.get("/user", async (req, res) => {
+    const { id } = req.query
+    const { sid } = req.cookies
     const userId = id || sid
     if (!userId) return
     try {
@@ -519,18 +555,18 @@ app.get("/user", async(req, res) => {
         const user = result.data.customer
         res.status(200).json(user)
     } catch (error) {
-        
+
     }
 })
 
 app.get("/logout", (req, res) => {
-    res.clearCookie("sid", {domain: "localhost", path: "/"})
+    res.clearCookie("sid", { domain: "localhost", path: "/" })
     res.send()
 })
 
-app.post("/create-account", async(req, res) => {
-    const {email, password, fName, lName} = req.body
-    const variables = { 
+app.post("/create-account", async (req, res) => {
+    const { email, password, fName, lName } = req.body
+    const variables = {
         input: {
             email,
             password,
@@ -540,19 +576,19 @@ app.post("/create-account", async(req, res) => {
     }
     try {
         const result = await fetchStoreFrontApi(createAccountQuery, variables)
-        const {data, errors} = result
-        if(data.customerCreate) {
+        const { data, errors } = result
+        if (data.customerCreate) {
             const customer = data.customerCreate.customer
             const customerErrors = data.customerCreate.customerUserErrors
 
-            if(customer) res.status(201).json(customer)
-            if (customerErrors.length > 0) res.status(400).json({message: customerErrors[0].message})
+            if (customer) res.status(201).json(customer)
+            if (customerErrors.length > 0) res.status(400).json({ message: customerErrors[0].message })
         }
 
-        if (errors) res.status(400).json({message: errors[0].message})
-        
+        if (errors) res.status(400).json({ message: errors[0].message })
+
     } catch (error) {
-        res.status(400).json({message: "Cannot create account"})
+        res.status(400).json({ message: "Cannot create account" })
 
     }
 })
@@ -567,7 +603,7 @@ const fetchAllProducts = async () => {
         const data = await fetchAdminApi(getAllProductsQuery(endCursor))
         let _products = []
         if (data.data) _products = data.data.products.edges.map(edge => edge.node)
-        products =[...products, ..._products]
+        products = [...products, ..._products]
         hasNext = data.data.products.pageInfo.hasNextPage
         endCursor = data.data.products.pageInfo.endCursor
         if (hasNext) await delay(4000)
@@ -588,7 +624,7 @@ const fetchAllArticles = async () => {
         const data = await fetchStoreFrontApi(getAllArticlesQuery(endCursor))
         let _articles = []
         if (data.data) _articles = data.data.articles.edges.map(edge => edge.node)
-        articles =[...articles, ..._articles]
+        articles = [...articles, ..._articles]
         hasNext = data.data.articles.pageInfo.hasNextPage
         endCursor = data.data.articles.pageInfo.endCursor
         if (hasNext) await delay(4000)
@@ -602,7 +638,7 @@ const delay = (time) => {
     return new Promise(resolve => setTimeout(() => resolve(), time))
 }
 
-const server = app.listen(4000, async() => {
+const server = app.listen(4000, async () => {
     console.log("listening...");
     fetchAllProducts()
     fetchAllArticles()
