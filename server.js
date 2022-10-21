@@ -87,44 +87,43 @@ app.post("/products/:handle", async (req, res) => {
 })
 
 app.post("/cart-item", async (req, res) => {
-    const { variantId, quantity, cartId } = req.body
-    let outOfStockError = null
+    const { productHandle: handle, options, quantity, cartId } = req.body
+    const variantId = await getVariantId(handle, options)
+    const {items} = await getCart(cartId)
 
+    const isInCart = items.find(item => item.variantId === variantId)
+    if (!isInCart) {
+        const {cart, outOfStockError} = await addToCart(cartId, variantId, quantity)
+        res.status(200).json({cart: processCart(cart), outOfStockError})
+    }
+    else {
+        const { quantity: previousQuantity, lineId } = isInCart
+        const newQuantity = previousQuantity + quantity
+        const {cart, outOfStockError} = await updateCart(cartId, lineId, variantId, newQuantity)
+        res.status(200).json({cart: processCart(cart), outOfStockError})
+    }
+})
+
+app.put("/cart-item", async (req, res) => {
+    const {cartId, lineId, variantId, newQuantity} = req.body
+    
     try {
-        if (!cartId) {
-            const cart = await createCart(variantId, quantity)
-            const { id } = cart
-            res.setHeader('Access-Control-Allow-Credentials', true);
-            res.cookie("cartId", String(id))
-            res.status(200).json({ id, items: [] })
-        } else {
-            const { items: cartItems } = await getCart(cartId)
-            const existed = cartItems.find(item => item.variantId === variantId)
-            if (!existed) {
-                outOfStockError = await addToCart(cartId, variantId, quantity)
-            }
-            else {
-                const { quantity: existedQuantity, lineId } = existed
-                const newQuantity = quantity + existedQuantity
-                outOfStockError = await updateCart(cartId, lineId, variantId, newQuantity)
-            }
-            res.status(200).json({ id: cartId, items: [], outOfStockError })
-        }
+        const {cart, outOfStockError} = await updateCart(cartId, lineId, variantId, newQuantity)
+        res.status(200).json({cart: processCart(cart), outOfStockError})
     } catch (error) {
-        console.log(error);
     }
 })
 
 app.delete("/cart-item", async (req, res) => {
+    const { cartId, lineId } = req.body
+    const variables = {
+        "cartId": cartId,
+        "lineIds": lineId
+    }
     try {
-        const { cartId, lineIds } = req.body
-        const variables = {
-            "cartId": cartId,
-            "lineIds": lineIds
-        }
         const data = await fetchStoreFrontApi(deleteCartItemQuery, variables)
-        const { cart: { id } } = data.data.cartLinesRemove
-        res.status(200).json({ id, items: [] })
+        const cart = data.data.cartLinesRemove.cart
+        res.status(200).json(processCart(cart))
     } catch (error) {
         console.log(error)
     }
@@ -146,18 +145,22 @@ const addToCart = async (cartId, variantId, quantity) => {
             "quantity": quantity
         }
     }
+    let outOfStockError = null
 
     const data = await fetchStoreFrontApi(addToCartQuery, variables)
     const cart = data.data.cartLinesAdd.cart
     const lines = cart.lines.edges.map(edge => edge.node)
     const curLine = lines.find(line => line.merchandise.id === variantId)
     if (curLine && curLine.quantity < quantity) {
-        return {
-            id: curLine.id,
+        outOfStockError = {
+            lineId: curLine.id,
             maximumQuantity: curLine.quantity
         }
     }
-    return null
+    return {
+        cart,
+        outOfStockError
+    }
 }
 
 const updateCart = async (cartId, lineId, variantId, newQuantity) => {
@@ -169,18 +172,22 @@ const updateCart = async (cartId, lineId, variantId, newQuantity) => {
             "quantity": newQuantity
         }
     }
+    let outOfStockError = null
 
     const data = await fetchStoreFrontApi(updateCartQuery, variables)
     const cart = data.data.cartLinesUpdate.cart
     const lines = cart.lines.edges.map(edge => edge.node)
     const curLine = lines.find(line => line.id === lineId)
     if (curLine && curLine.quantity < newQuantity) {
-        return {
+        outOfStockError = {
             id: curLine.id,
             maximumQuantity: curLine.quantity
         }
     }
-    return null
+    return {
+        cart,
+        outOfStockError
+    }
 }
 
 const getCart = async (cartId) => {
@@ -269,12 +276,15 @@ const getVariantId = async(handle, options) => {
 
 app.post("/cart-items", async (req, res) => {
     const { productHandle: handle, options, quantity } = req.body
-    const variantId = await getVariantId(handle, options)
-    const cart = await createCart(variantId, quantity)
-    const {id} = cart
-    res.setHeader('Access-Control-Allow-Credentials', true);
-    res.cookie("cartId", String(id))
-    res.status(200).json(processCart(cart))
+    try {
+        const variantId = await getVariantId(handle, options)
+        const cart = await createCart(variantId, quantity)
+        const {id} = cart
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.cookie("cartId", String(id))
+        res.status(200).json(processCart(cart))
+    } catch (error) {
+    }
 })
 
 app.get("/search", async (req, res) => {
