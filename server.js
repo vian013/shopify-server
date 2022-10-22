@@ -484,7 +484,6 @@ app.get("/blogs/:handle", async(req, res) => {
 })
 
 app.post("/login", async (req, res) => {
-    console.log("fields:", req.body);
     const {email, password} = req.body
     const query = loginQuery
     const variables = {
@@ -499,7 +498,6 @@ app.post("/login", async (req, res) => {
     if (customerAccessToken && customerUserErrors.length === 0) {
         const data = await fetchAdminApi(customerQuery(email))
         const customer = data.data.customers.edges[0].node
-        console.log("customer", customer);
         res.setHeader('Access-Control-Allow-Credentials', true);
         res.cookie("sid", customer.id)
         res.status(200).json(customer)
@@ -527,26 +525,31 @@ app.get("/user", async(req, res) => {
 
 app.get("/logout", (req, res) => {
     res.clearCookie("sid", {domain: "localhost", path: "/"})
-    res.send()
+    res.status(200).json({})
 })
 
-app.post("/create-account", async(req, res) => {
-    const {email, password, fName, lName} = req.body
+app.post("/user", async(req, res) => {
+    const {email, password, firstName, lastName} = req.body
     const variables = { 
         input: {
             email,
             password,
-            firstName: fName,
-            lastName: lName
+            firstName: firstName,
+            lastName: lastName
         }
     }
     try {
         const result = await fetchStoreFrontApi(createAccountQuery, variables)
+        console.log(result);
         const {data, errors} = result
         if(data.customerCreate) {
             const customer = data.customerCreate.customer
             const customerErrors = data.customerCreate.customerUserErrors
 
+            console.log(customer);
+            console.log(customerErrors);
+            res.setHeader('Access-Control-Allow-Credentials', true);
+            res.cookie("sid", customer.id)
             if(customer) res.status(201).json(customer)
             if (customerErrors.length > 0) res.status(400).json({message: customerErrors[0].message})
         }
