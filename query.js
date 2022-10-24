@@ -104,18 +104,22 @@ const loginQuery = `
             }
         }
     `
+
+const customerData = `
+  id
+  email
+  lastName
+  firstName
+  displayName
+  phone
+`
 const customerQuery = (email) => {
     return `
     {
         customers(first: 1, query: "email:${email}") {
             edges {
                 node {
-                  id
-                  email
-                  lastName
-                  firstName
-                  displayName
-                  phone
+                  ${customerData}
                   numberOfOrders
                 }
             }
@@ -133,12 +137,7 @@ const createAccountQuery = `
           message
         }
         customer {
-          id
-          email
-          lastName
-          firstName
-          displayName
-          phone
+          ${customerData}
         }
       }
   }

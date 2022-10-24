@@ -464,7 +464,7 @@ app.get("/collections/:handle", async (req, res) => {
     const { handle } = req.params
     try {
         const result = await fetchAdminApi(getCollectionProductsQuery(handle))
-        const _products = result.data.collectionByHandle.products.edges.map(edge => edge.node)
+        const _products = result.data?.collectionByHandle.products.edges.map(edge => edge.node)
         const products = processProducts(_products)
         res.status(200).json(products)
     } catch (error) {
@@ -571,29 +571,34 @@ app.get("/user", async (req, res) => {
 })
 
 app.get("/logout", (req, res) => {
-    res.clearCookie("sid", { domain: "localhost", path: "/" })
-    res.send()
+    res.clearCookie("sid", {domain: "localhost", path: "/"})
+    res.status(200).json({})
 })
 
-app.post("/create-account", async (req, res) => {
-    const { email, password, fName, lName } = req.body
-    const variables = {
+app.post("/user", async(req, res) => {
+    const {email, password, firstName, lastName} = req.body
+    const variables = { 
         input: {
             email,
             password,
-            firstName: fName,
-            lastName: lName
+            firstName: firstName,
+            lastName: lastName
         }
     }
     try {
         const result = await fetchStoreFrontApi(createAccountQuery, variables)
-        const { data, errors } = result
-        if (data.customerCreate) {
+        console.log(result);
+        const {data, errors} = result
+        if(data.customerCreate) {
             const customer = data.customerCreate.customer
             const customerErrors = data.customerCreate.customerUserErrors
 
-            if (customer) res.status(201).json(customer)
-            if (customerErrors.length > 0) res.status(400).json({ message: customerErrors[0].message })
+            console.log(customer);
+            console.log(customerErrors);
+            res.setHeader('Access-Control-Allow-Credentials', true);
+            res.cookie("sid", customer.id)
+            if(customer) res.status(201).json(customer)
+            if (customerErrors.length > 0) res.status(400).json({message: customerErrors[0].message})
         }
 
         if (errors) res.status(400).json({ message: errors[0].message })
