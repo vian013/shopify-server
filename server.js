@@ -39,8 +39,9 @@ const getAllProducts = () => {
 }
 
 app.get("/products/:handle", async (req, res) => {
+    const handle = req.params.handle
+    
     try {
-        const handle = req.params.handle
         const query = productByHandleQuery(handle)
         const data = await fetchAdminApi(query)
         if (!data.data) throw new Error("No data")
