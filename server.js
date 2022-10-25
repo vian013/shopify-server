@@ -474,6 +474,7 @@ app.get("/collections/:handle", async (req, res) => {
 
 
 app.get("/blogs/news/tagged/:handle", async (req, res) => {
+    console.log("/blogs/news/tagged/:handle");
     const { handle } = req.params
     const { startCursor, endCursor, tag } = req.query
     const query = blogArticlesByHandleQuery(startCursor, endCursor, tag)
@@ -503,6 +504,7 @@ app.get("/blogs/news/tagged/:handle", async (req, res) => {
 })
 
 app.get("/blogs/:handle", async (req, res) => {
+    console.log("/blogs/:handle");
     const { handle } = req.params
     if (!handle) return
 
