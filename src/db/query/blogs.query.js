@@ -52,7 +52,28 @@ const getBlogArticlesByTagQuery = (startCursor, endCursor, tag) => {
     `
 }
 
+const getAllArticlesQuery = (endCursor) => {
+  return `
+    {
+      articles(first: 18, reverse: true, ${endCursor&&`, after: "${endCursor}"`}) {
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+        edges {
+          node {
+            ${blogData}
+          }
+        }
+      }
+    }
+  `
+}
+
 module.exports = {
     getBlogArticlesByHandleQuery,
-    getBlogArticlesByTagQuery
+    getBlogArticlesByTagQuery,
+    getAllArticlesQuery
 }

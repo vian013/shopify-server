@@ -1,3 +1,4 @@
+const { getAllProducts } = require("../subscribers/onServerStart")
 const { process } = require("../utils")
 
 const getProductByHandle = async (handle) => {
@@ -50,6 +51,7 @@ const getColorsAndSizes = (products) => {
 
 const filterProducts = (size, color, minPrice, maxPrice) => {
     let _products = []
+    const allProducts = getAllProducts()
 
     if (!size && !color) {
         _products = allProducts.filter(product => {

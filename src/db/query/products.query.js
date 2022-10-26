@@ -19,8 +19,58 @@ const getProductByHandleQuery = (handle) => `
 	}
 }
 `
+const getAllProductsQuery = (endCursor) => {
+	return `
+	{
+		products(first: 18, reverse: true, ${endCursor&&`, after: "${endCursor}"`}) {
+			pageInfo{
+			hasNextPage
+			endCursor
+		  }
+		  edges {
+			node {
+			  id
+			  title
+			  description
+			  images(first: 5) {
+				edges {
+				  node {
+					id
+					url
+				  }
+				}
+			  }
+			  featuredImage {
+				id
+				url
+			  }
+			  handle
+			  vendor
+			  totalInventory
+			  variants(first: 15) {
+				edges {
+				  node {
+					id
+					title
+					price
+					selectedOptions {
+					  name,
+					  value
+					}
+					inventoryQuantity
+				  }
+				}
+			  }
+			}
+		  }
+		}
+	  }
+	`
+  }
+
 
 module.exports = {
     getProductsQuery,
-    getProductByHandleQuery
+    getProductByHandleQuery,
+	getAllProductsQuery
 }

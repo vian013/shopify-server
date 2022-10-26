@@ -11,3 +11,5 @@ router.route("/:handle")
 .post(cartController.postCartItem)
 .put(cartController.putCartItem)
 .delete(cartController.deleteCartItem)
+
+module.exports = router

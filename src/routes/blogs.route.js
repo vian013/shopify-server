@@ -3,7 +3,7 @@ const { blogController } = require("../controllers")
 
 const router = express.Router()
 
-router.get("/news/:handle", )
+router.get("/news/:handle", blogController.getArticlesBy)
 
 router.get("/news/tagged/:tag", blogController.getArticlesByTag)
 

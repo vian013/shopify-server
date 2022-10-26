@@ -1,7 +1,8 @@
 const {process} = require("../utils")
 const {productService} = require("../services")
+const { getAllProducts: _getAllProducts} = require("../subscribers/onServerStart")
 const getAllProducts = async (req, res) => {
-    const allProducts = await fetchAllProducts()
+    const allProducts = _getAllProducts()
     try {
         const products = process.processProducts(allProducts)
         res.status(200).json(products.reverse())

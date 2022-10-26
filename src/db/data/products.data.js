@@ -8,13 +8,13 @@ const productData = (variantsLimit) => `
     }
     handle
     variants(first:${variantsLimit}) {
-    edges {
-        node {
-            id
-            title
-            price
+        edges {
+            node {
+                id
+                title
+                price
+            }
         }
-    }
     }
     vendor
     totalInventory
